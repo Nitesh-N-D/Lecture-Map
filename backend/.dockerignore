@@ -1,0 +1,25 @@
+# Secrets — never bake real credentials into an image layer
+.env
+.env.*
+!.env.example
+
+# Python cruft
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+venv/
+.venv/
+
+# Version control / editor
+.git/
+.gitignore
+.vscode/
+.idea/
+*.swp
+
+# Local-only artifacts
+*.log
+.DS_Store

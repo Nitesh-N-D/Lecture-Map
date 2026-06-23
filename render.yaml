@@ -1,0 +1,87 @@
+# Render Blueprint — deploys the FastAPI API and the Celery worker as two
+# services from one repo. Push this repo to Render, choose "New Blueprint
+# Instance", and point it at this file. You'll still need to fill in the
+# secret env vars (marked sync: false) in the Render dashboard after the
+# first deploy — Render won't let secrets live in a committed YAML file.
+#
+# Postgres and Redis are NOT defined here as Render-managed services
+# because the project intentionally targets external free tiers
+# (Supabase Postgres + Upstash Redis) to match the take-home spec's
+# "all free tiers" requirement. If you'd rather use Render's own managed
+# Postgres/Redis, add a `databases:` block / a `redis` service and update
+# DATABASE_URL / REDIS_URL below to use Render's `fromDatabase` /
+# `fromService` env var references instead of `sync: false`.
+
+services:
+  # ── FastAPI API ──────────────────────────────────────────────────────
+  - type: web
+    name: lecturemap-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: lecture-files
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USERNAME
+        value: neo4j
+      - key: NEO4J_PASSWORD
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: FRONTEND_URL
+        sync: false
+      - key: ENVIRONMENT
+        value: production
+
+  # ── Celery background worker ────────────────────────────────────────
+  # Runs the same image as the API but as a worker process instead of a
+  # web service — handles transcription, concept extraction, and
+  # flashcard generation off the request/response cycle.
+  - type: worker
+    name: lecturemap-worker
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: celery -A app.celery_app worker --loglevel=info --concurrency=2
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: lecture-files
+      - key: NEO4J_URI
+        sync: false
+      - key: NEO4J_USERNAME
+        value: neo4j
+      - key: NEO4J_PASSWORD
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ENVIRONMENT
+        value: production

@@ -1,0 +1,14 @@
+# LectureMap robots.txt
+# https://lecturemap.app/robots.txt
+
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /lectures/
+Disallow: /review
+Disallow: /auth/
+
+# Public marketing pages only — app pages require auth and have no SEO value
+Allow: /$
+
+Sitemap: https://lecturemap.app/sitemap.xml

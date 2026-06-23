@@ -1,0 +1,21 @@
+# Secrets — never bake real credentials into an image layer
+.env
+.env.*
+!.env.example
+
+# Dependencies — installed fresh inside the container
+node_modules/
+
+# Build output — generated inside the container, not copied in
+dist/
+
+# Version control / editor
+.git/
+.gitignore
+.vscode/
+.idea/
+*.swp
+
+# Local-only artifacts
+*.log
+.DS_Store

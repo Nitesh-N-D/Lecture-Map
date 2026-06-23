@@ -1,0 +1,99 @@
+version: '3.8'
+
+# Full local dev stack: Postgres + Redis + FastAPI + Celery worker + Vite
+# frontend, all on one network. Neo4j is NOT included here — it always
+# points at Neo4j Aura Free (cloud), configured via NEO4J_URI in
+# backend/.env, since Aura's free tier has no practical local Docker
+# equivalent worth maintaining.
+#
+# First-time setup:
+#   cp backend/.env.example backend/.env        # fill in real secrets
+#   cp frontend/.env.example frontend/.env       # defaults already correct
+#   docker compose up --build
+#
+# Then open http://localhost:5173
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: lecturemap
+      POSTGRES_USER: dev
+      POSTGRES_PASSWORD: dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dev -d lecturemap"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    env_file:
+      # .env is required (copy from .env.example before first run); a
+      # missing file fails the build with a clear "file not found" error
+      # rather than silently falling back to empty values.
+      - ./backend/.env
+    environment:
+      # These two override whatever's in .env so local Docker networking
+      # (service name as hostname) always wins over a localhost value a
+      # developer might have left in their .env from non-Docker testing.
+      DATABASE_URL: postgresql+asyncpg://dev:dev@postgres:5432/lecturemap
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  worker:
+    build: ./backend
+    env_file:
+      - ./backend/.env
+    environment:
+      DATABASE_URL: postgresql://dev:dev@postgres:5432/lecturemap
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./backend:/app
+    command: celery -A app.celery_app worker --loglevel=info --concurrency=2
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:8000
+    depends_on:
+      - api
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0
+
+volumes:
+  postgres_data:
