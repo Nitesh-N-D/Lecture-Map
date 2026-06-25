@@ -8,8 +8,11 @@ logger = logging.getLogger(__name__)
 engine = create_async_engine(
     settings.DATABASE_URL,
     pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
+    pool_size=1,
+    max_overflow=0,
+    connect_args={
+        "statement_cache_size": 0,
+    },
     echo=settings.ENVIRONMENT == "development",
 )
 
