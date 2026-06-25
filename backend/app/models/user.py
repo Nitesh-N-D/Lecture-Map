@@ -21,7 +21,14 @@ class User(Base):
     name = Column(String, nullable=True)
     avatar_url = Column(String, nullable=True)
     google_id = Column(String, unique=True, nullable=True, index=True)
-    role = Column(SAEnum(UserRole), default=UserRole.USER, nullable=False)
+    role = Column(
+    SAEnum(
+        UserRole,
+        values_callable=lambda obj: [e.value for e in obj],
+    ),
+    default=UserRole.USER,
+    nullable=False,
+    )
     is_guest = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
