@@ -352,21 +352,6 @@ changing it.
 
 ---
 
-## SEO & Search Console Setup
-
-The frontend ships with a complete SEO baseline:
-
-| Asset | Path | Purpose |
-|-------|------|---------|
-| Favicons (ICO, PNG ×4, SVG) | `frontend/public/favicon*` | Browser tabs, bookmarks |
-| Apple touch icon | `frontend/public/apple-touch-icon.png` | iOS home screen |
-| Android/maskable icons | `frontend/public/android-chrome-*.png`, `maskable-icon-512x512.png` | PWA install, Android adaptive icons |
-| Web app manifest | `frontend/public/site.webmanifest` | PWA metadata |
-| Open Graph image | `frontend/public/og-image.png` | Link previews on Slack/Discord/iMessage |
-| `robots.txt` | `frontend/public/robots.txt` | Crawler rules — only `/` is indexable; app routes are disallowed |
-| `sitemap.xml` | `frontend/public/sitemap.xml` | Search engine sitemap |
-| JSON-LD structured data | inline in `index.html` | Rich results (SoftwareApplication schema) |
-
 ### Connecting Google Search Console
 
 1. Go to [Google Search Console](https://search.google.com/search-console) → **Add property** → enter `https://lecturemap.app` (use your real production domain).
