@@ -4,6 +4,7 @@
 
 **The core differentiator:** LectureMap builds a prerequisite dependency graph — not just a list of topics. Arrows show which concepts must be mastered before others. Knowledge gaps glow red in real-time.
 
+
 ---
 
 ## Preview
