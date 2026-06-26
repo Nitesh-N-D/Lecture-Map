@@ -3,7 +3,6 @@ uvicorn[standard]==0.29.0
 celery==5.3.6
 redis==5.0.4
 sqlalchemy[asyncio]==2.0.30
-asyncpg==0.29.0
 alembic==1.13.1
 pydantic-settings==2.2.1
 python-multipart==0.0.9
