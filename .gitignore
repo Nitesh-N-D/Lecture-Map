@@ -4,6 +4,8 @@
 **/.env.*.local
 !**/.env.example
 
+venv
+
 # ── Backend (Python) ─────────────────────────────────────────────────
 backend/__pycache__/
 backend/**/__pycache__/
@@ -14,6 +16,7 @@ backend/**/__pycache__/
 .mypy_cache/
 backend/venv/
 backend/.venv/
+
 
 # ── Frontend (Node/Vite) ─────────────────────────────────────────────
 frontend/node_modules/
