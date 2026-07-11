@@ -1,5 +1,5 @@
 # LectureMap robots.txt
-# https://lecturemap.app/robots.txt
+# https://lecture-map.vercel.app/robots.txt
 
 User-agent: *
 Allow: /
@@ -11,4 +11,4 @@ Disallow: /auth/
 # Public marketing pages only — app pages require auth and have no SEO value
 Allow: /$
 
-Sitemap: https://lecturemap.app/sitemap.xml
+Sitemap: https://lecture-map.vercel.app/sitemap.xml
