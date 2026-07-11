@@ -81,9 +81,9 @@ export default function ProcessingStatus({ lectureId, onComplete }) {
             <div key={step} className={`flex items-center gap-3 ${pending ? 'opacity-40' : ''}`}>
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 transition-all ${
                 done
-                  ? 'bg-green-100 dark:bg-green-950/40 text-green-600 dark:text-green-400'
+                  ? 'bg-green-100 text-green-600'
                   : active
-                  ? 'bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400'
+                  ? 'bg-brand-100 text-brand-600'
                   : 'surface-bg text-tertiary'
               }`}>
                 {done ? '✓' : active ? (
@@ -93,7 +93,7 @@ export default function ProcessingStatus({ lectureId, onComplete }) {
               <span className={`text-sm ${active ? 'text-primary font-medium' : 'text-secondary'}`}>
                 {label}
                 {active && <span className="text-tertiary text-xs ml-2">in progress…</span>}
-                {done && <span className="text-green-500 dark:text-green-400 text-xs ml-2">done</span>}
+                {done && <span className="text-green-500 text-xs ml-2">done</span>}
               </span>
             </div>
           )
@@ -101,7 +101,7 @@ export default function ProcessingStatus({ lectureId, onComplete }) {
       </div>
 
       {status?.status === 'FAILED' && (
-        <div className="mt-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 rounded-lg p-3 text-sm text-red-700 dark:text-red-400">
+        <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
           ⚠️ {status.error_message || 'Processing failed. Please try again.'}
         </div>
       )}

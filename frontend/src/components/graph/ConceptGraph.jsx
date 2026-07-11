@@ -359,7 +359,7 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
       <div className="flex items-center gap-3 px-4 py-2.5 border-b surface-border surface-card flex-wrap transition-colors">
         {/* Gap banner */}
         {gapCount > 0 && (
-          <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-400 text-xs px-2.5 py-1 rounded-full font-medium">
+          <div className="flex items-center gap-1.5 bg-red-50 border border-red-200 text-red-700 text-xs px-2.5 py-1 rounded-full font-medium">
             <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
             {gapCount} knowledge gap{gapCount !== 1 ? 's' : ''} detected
           </div>
@@ -433,11 +433,11 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
 
       {/* Active Aha Path node banner */}
       {ahaPlaying && ahaIndex >= 0 && ahaOrder[ahaIndex] && (
-        <div className="px-4 py-2 bg-brand-50 dark:bg-brand-900/20 border-b border-brand-100 dark:border-brand-900 flex items-center gap-2 animate-fade-in">
-          <span className="text-xs font-semibold text-brand-700 dark:text-brand-400">
+        <div className="px-4 py-2 bg-brand-50 border-b border-brand-100 flex items-center gap-2 animate-fade-in">
+          <span className="text-xs font-semibold text-brand-700">
             {ahaIndex + 1}. {ahaOrder[ahaIndex].name}
           </span>
-          <span className="text-xs text-brand-500 dark:text-brand-500">
+          <span className="text-xs text-brand-500">
             {ahaOrder[ahaIndex].definition?.slice(0, 80)}
           </span>
         </div>

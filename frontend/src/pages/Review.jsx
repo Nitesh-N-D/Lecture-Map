@@ -86,7 +86,7 @@ export default function Review() {
             <p className="text-xs text-tertiary mt-0.5">Reviewed today</p>
           </div>
           <div className="surface-card border surface-border rounded-xl p-3 text-center">
-            <p className="text-xl font-bold text-green-600 dark:text-green-400">{sessionCount}</p>
+            <p className="text-xl font-bold text-green-600">{sessionCount}</p>
             <p className="text-xs text-tertiary mt-0.5">This session</p>
           </div>
           <div className="surface-card border surface-border rounded-xl p-3 text-center">

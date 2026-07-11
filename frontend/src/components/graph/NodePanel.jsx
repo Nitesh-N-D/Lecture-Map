@@ -5,9 +5,9 @@ import useStore from '../../store/useStore'
 import toast from 'react-hot-toast'
 
 const DIFFICULTY_BADGE = {
-  beginner: 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400',
-  intermediate: 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400',
-  advanced: 'bg-pink-100 dark:bg-pink-950/40 text-pink-700 dark:text-pink-400',
+  beginner: 'bg-green-100 text-green-700',
+  intermediate: 'bg-blue-100 text-blue-700',
+  advanced: 'bg-pink-100 text-pink-700',
 }
 
 export default function NodePanel({ node, onClose, lectureId }) {
@@ -102,7 +102,7 @@ export default function NodePanel({ node, onClose, lectureId }) {
         {node.timestamp_seconds > 0 && (
           <div>
             <p className="text-xs font-semibold text-tertiary uppercase tracking-wide mb-1">Introduced at</p>
-            <span className="text-sm text-brand-600 dark:text-brand-400 font-mono">
+            <span className="text-sm text-brand-600 font-mono">
               {formatTime(node.timestamp_seconds)}
             </span>
           </div>
@@ -150,11 +150,11 @@ export default function NodePanel({ node, onClose, lectureId }) {
 
         {/* Inline flashcard */}
         {flashcard && (
-          <div className="bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-900 rounded-lg p-3">
-            <p className="text-xs font-semibold text-brand-700 dark:text-brand-400 mb-1">Flashcard</p>
+          <div className="bg-brand-50 border border-brand-200 rounded-lg p-3">
+            <p className="text-xs font-semibold text-brand-700 mb-1">Flashcard</p>
             <p className="text-sm font-medium text-primary mb-2">Q: {flashcard.question}</p>
             <details>
-              <summary className="text-xs text-brand-600 dark:text-brand-400 cursor-pointer">Show answer</summary>
+              <summary className="text-xs text-brand-600 cursor-pointer">Show answer</summary>
               <p className="text-sm text-secondary mt-1.5">A: {flashcard.answer}</p>
             </details>
           </div>
@@ -168,7 +168,7 @@ export default function NodePanel({ node, onClose, lectureId }) {
           disabled={isVisited}
           className={`w-full text-sm py-2 rounded-lg font-medium transition-colors ${
             isVisited
-              ? 'bg-green-50 dark:bg-green-950/30 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-900 cursor-default'
+              ? 'bg-green-50 text-green-600 border border-green-200 cursor-default'
               : 'bg-brand-600 text-white hover:bg-brand-700'
           }`}
         >
@@ -200,7 +200,7 @@ function ConceptChip({ node, visited }) {
   return (
     <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs ${
       visited
-        ? 'bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400'
+        ? 'bg-green-50 text-green-700'
         : 'surface-bg text-secondary'
     }`}>
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${visited ? 'bg-green-500' : 'bg-[var(--surface-border-strong)]'}`} />

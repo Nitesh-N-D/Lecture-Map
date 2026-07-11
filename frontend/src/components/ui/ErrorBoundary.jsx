@@ -54,7 +54,7 @@ export default class ErrorBoundary extends Component {
               </button>
             </div>
             {import.meta.env.DEV && this.state.error && (
-              <pre className="mt-6 text-left text-xs text-red-500 bg-red-50 dark:bg-red-950/30 rounded-lg p-3 overflow-auto max-h-40">
+              <pre className="mt-6 text-left text-xs text-red-500 bg-red-50 rounded-lg p-3 overflow-auto max-h-40">
                 {String(this.state.error?.stack || this.state.error)}
               </pre>
             )}

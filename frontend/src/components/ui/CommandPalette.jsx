@@ -164,7 +164,7 @@ export default function CommandPalette() {
                 }}
                 onMouseEnter={() => setActiveIdx(i)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                  i === activeIdx ? 'bg-brand-50 dark:bg-brand-900/30' : ''
+                  i === activeIdx ? 'bg-brand-50' : ''
                 }`}
               >
                 <span className="text-base shrink-0">{item.icon}</span>

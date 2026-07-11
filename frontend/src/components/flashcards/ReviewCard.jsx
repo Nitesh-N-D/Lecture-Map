@@ -106,7 +106,7 @@ export default function ReviewCard({ card, onRate, remaining }) {
             style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
             className="absolute inset-0 surface-card border surface-border rounded-2xl p-8 flex flex-col items-center justify-center shadow-sm cursor-pointer hover:shadow-md transition-shadow"
           >
-            <p className="text-xs text-brand-500 dark:text-brand-400 font-semibold uppercase tracking-wider mb-3">
+            <p className="text-xs text-brand-500 font-semibold uppercase tracking-wider mb-3">
               {card.concept_name}
             </p>
             <p className="text-lg font-medium text-primary text-center leading-snug">

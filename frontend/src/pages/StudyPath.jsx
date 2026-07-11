@@ -5,9 +5,9 @@ import useStore from '../store/useStore'
 import toast from 'react-hot-toast'
 
 const DIFF_COLORS = {
-  beginner: 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400 border-green-200 dark:border-green-900',
-  intermediate: 'bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-900',
-  advanced: 'bg-pink-100 dark:bg-pink-950/40 text-pink-700 dark:text-pink-400 border-pink-200 dark:border-pink-900',
+  beginner: 'bg-green-100 text-green-700 border-green-200',
+  intermediate: 'bg-blue-100 text-blue-700 border-blue-200',
+  advanced: 'bg-pink-100 text-pink-700 border-pink-200',
 }
 
 export default function StudyPath() {
@@ -105,7 +105,7 @@ export default function StudyPath() {
             <select
               value={targetId}
               onChange={(e) => setTargetId(e.target.value)}
-              className="flex-1 surface-bg border surface-border rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900 text-primary"
+              className="flex-1 surface-bg border surface-border rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 text-primary"
             >
               <option value="">Choose target concept…</option>
               {nodes
@@ -144,10 +144,10 @@ export default function StudyPath() {
               return (
                 <div key={node.concept_id} className="relative">
                   <div className={`flex items-start gap-4 surface-card border rounded-xl p-4 transition-all ${
-                    visited ? 'border-green-200 dark:border-green-900 bg-green-50/50 dark:bg-green-950/10' : 'surface-border hover:border-brand-200 dark:hover:border-brand-800'
+                    visited ? 'border-green-200 bg-green-50/50' : 'surface-border hover:border-brand-200'
                   }`}>
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 ${
-                      visited ? 'bg-green-100 dark:bg-green-950/40 text-green-700 dark:text-green-400' : 'surface-bg text-secondary'
+                      visited ? 'bg-green-100 text-green-700' : 'surface-bg text-secondary'
                     }`}>
                       {visited ? '✓' : i + 1}
                     </div>
@@ -163,7 +163,7 @@ export default function StudyPath() {
                     {!visited && (
                       <button
                         onClick={() => handleMarkStudied(node.concept_id)}
-                        className="shrink-0 text-xs text-brand-600 dark:text-brand-400 hover:text-brand-700 font-medium border border-brand-200 dark:border-brand-900 px-2.5 py-1 rounded-lg transition-colors"
+                        className="shrink-0 text-xs text-brand-600 hover:text-brand-700 font-medium border border-brand-200 px-2.5 py-1 rounded-lg transition-colors"
                       >
                         Mark done
                       </button>
@@ -179,15 +179,15 @@ export default function StudyPath() {
             {/* Target node */}
             <div className="relative">
               <div className="w-px h-3 bg-[var(--surface-border-strong)] ml-8" />
-              <div className="flex items-start gap-4 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-900 rounded-xl p-4">
-                <div className="w-8 h-8 rounded-full bg-brand-100 dark:bg-brand-900/50 text-brand-700 dark:text-brand-400 flex items-center justify-center text-sm font-semibold shrink-0">
+              <div className="flex items-start gap-4 bg-brand-50 border border-brand-200 rounded-xl p-4">
+                <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-semibold shrink-0">
                   🎯
                 </div>
                 <div>
-                  <p className="font-semibold text-brand-900 dark:text-brand-300 text-sm">
+                  <p className="font-semibold text-brand-900 text-sm">
                     {nodes.find((n) => n.concept_id === targetId)?.name || 'Target concept'}
                   </p>
-                  <p className="text-xs text-brand-600 dark:text-brand-400 mt-0.5">Your goal</p>
+                  <p className="text-xs text-brand-600 mt-0.5">Your goal</p>
                 </div>
               </div>
             </div>

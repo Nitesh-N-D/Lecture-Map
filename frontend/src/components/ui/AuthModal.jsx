@@ -126,7 +126,7 @@ export default function AuthModal({ open, onClose, initialMode = 'login' }) {
               placeholder="Name (optional)"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="surface-bg border surface-border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900 text-primary"
+              className="surface-bg border surface-border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 text-primary"
             />
           )}
           <input
@@ -136,7 +136,7 @@ export default function AuthModal({ open, onClose, initialMode = 'login' }) {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="surface-bg border surface-border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900 text-primary"
+            className="surface-bg border surface-border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 text-primary"
           />
           <input
             type="password"
@@ -145,11 +145,11 @@ export default function AuthModal({ open, onClose, initialMode = 'login' }) {
             placeholder={mode === 'signup' ? 'Password (min. 8 characters)' : 'Password'}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="surface-bg border surface-border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 dark:focus:ring-brand-900 text-primary"
+            className="surface-bg border surface-border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 text-primary"
           />
 
           {error && (
-            <p className="text-xs text-red-500 dark:text-red-400 animate-fade-in">{error}</p>
+            <p className="text-xs text-red-500 animate-fade-in">{error}</p>
           )}
 
           <button
@@ -165,13 +165,13 @@ export default function AuthModal({ open, onClose, initialMode = 'login' }) {
         <p className="text-center text-xs text-tertiary mt-4">
           {mode === 'login' ? (
             <>Don't have an account?{' '}
-              <button onClick={() => { setMode('signup'); setError('') }} className="text-brand-600 dark:text-brand-400 font-medium hover:underline">
+              <button onClick={() => { setMode('signup'); setError('') }} className="text-brand-600 font-medium hover:underline">
                 Sign up
               </button>
             </>
           ) : (
             <>Already have an account?{' '}
-              <button onClick={() => { setMode('login'); setError('') }} className="text-brand-600 dark:text-brand-400 font-medium hover:underline">
+              <button onClick={() => { setMode('login'); setError('') }} className="text-brand-600 font-medium hover:underline">
                 Sign in
               </button>
             </>

@@ -128,7 +128,7 @@ export default function LectureView() {
         {/* Export buttons */}
         <div className="flex items-center gap-2 shrink-0">
           {dueCards.length > 0 && (
-            <span className="text-xs bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 border border-brand-200 dark:border-brand-900 px-2 py-1 rounded-full font-medium">
+            <span className="text-xs bg-brand-50 text-brand-600 border border-brand-200 px-2 py-1 rounded-full font-medium">
               {dueCards.length} due
             </span>
           )}
@@ -163,13 +163,13 @@ export default function LectureView() {
             onClick={() => setTab(t)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === t
-                ? 'border-brand-600 text-brand-600 dark:text-brand-400'
+                ? 'border-brand-600 text-brand-600'
                 : 'border-transparent text-secondary hover:text-primary'
             }`}
           >
             {t}
             {t === 'Flashcards' && dueCards.length > 0 && (
-              <span className="ml-1.5 text-xs bg-brand-100 dark:bg-brand-900/40 text-brand-600 dark:text-brand-400 px-1.5 py-0.5 rounded-full">
+              <span className="ml-1.5 text-xs bg-brand-100 text-brand-600 px-1.5 py-0.5 rounded-full">
                 {dueCards.length}
               </span>
             )}
@@ -295,7 +295,7 @@ export default function LectureView() {
                         <button
                           key={g.concept_id}
                           onClick={() => { setTab('Graph'); setSelectedNode(g) }}
-                          className="flex items-center gap-2 text-left surface-card border border-red-200 dark:border-red-900 rounded-lg px-3 py-2.5 hover:bg-red-50 dark:hover:bg-red-950/20 transition-colors"
+                          className="flex items-center gap-2 text-left surface-card border border-red-200 rounded-lg px-3 py-2.5 hover:bg-red-50 transition-colors"
                         >
                           <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
                           <span className="text-sm text-secondary">{g.name}</span>

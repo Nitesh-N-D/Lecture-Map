@@ -9,10 +9,10 @@ import MasteryHeatmap from '../components/ui/MasteryHeatmap'
 import toast from 'react-hot-toast'
 
 const STATUS_COLORS = {
-  PENDING: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400',
-  PROCESSING: 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400',
-  COMPLETED: 'bg-green-50 dark:bg-green-950/40 text-green-700 dark:text-green-400',
-  FAILED: 'bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400',
+  PENDING: 'bg-slate-100 text-slate-500',
+  PROCESSING: 'bg-amber-50 text-amber-600',
+  COMPLETED: 'bg-green-50 text-green-700',
+  FAILED: 'bg-red-50 text-red-600',
 }
 
 export default function Dashboard() {
@@ -99,7 +99,7 @@ export default function Dashboard() {
       {stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           <StatCard label="Due today" value={stats.cards_due_today} color="text-brand-600" />
-          <StatCard label="Reviewed today" value={stats.cards_reviewed_today} color="text-green-600 dark:text-green-400" />
+          <StatCard label="Reviewed today" value={stats.cards_reviewed_today} color="text-green-600" />
           <StatCard
             label="Day streak"
             value={stats.streak_days}
@@ -163,10 +163,10 @@ export default function Dashboard() {
       )}
 
       {stats?.cards_due_today > 0 && (
-        <div className="mt-8 bg-brand-50 dark:bg-brand-900/20 border border-brand-200 dark:border-brand-900 rounded-xl p-4 flex items-center justify-between flex-wrap gap-3">
+        <div className="mt-8 bg-brand-50 border border-brand-200 rounded-xl p-4 flex items-center justify-between flex-wrap gap-3">
           <div>
-            <p className="font-medium text-brand-900 dark:text-brand-300 text-sm">{stats.cards_due_today} cards ready for review</p>
-            <p className="text-xs text-brand-600 dark:text-brand-400 mt-0.5">Keep your streak going!</p>
+            <p className="font-medium text-brand-900 text-sm">{stats.cards_due_today} cards ready for review</p>
+            <p className="text-xs text-brand-600 mt-0.5">Keep your streak going!</p>
           </div>
           <Link
             to="/review"
@@ -193,7 +193,7 @@ function LectureCard({ lecture, onDelete }) {
   return (
     <Link
       to={`/lectures/${lecture.id}`}
-      className="block surface-card border surface-border rounded-xl p-4 hover:border-brand-300 dark:hover:border-brand-700 hover:shadow-sm transition-all group"
+      className="block surface-card border surface-border rounded-xl p-4 hover:border-brand-300 hover:shadow-sm transition-all group"
     >
       <div className="flex items-center gap-4">
         <ProgressRing percent={lecture.status === 'COMPLETED' ? 100 : 0} size={44} stroke={3} />

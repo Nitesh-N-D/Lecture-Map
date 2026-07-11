@@ -5,7 +5,6 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const client = axios.create({
   baseURL: API_BASE,
   timeout: 30000,
-  headers: { 'Content-Type': 'application/json' },
 })
 
 // Attach JWT token from store
@@ -50,11 +49,10 @@ export const api = {
   getLectureStatus: (id) => client.get(`/lectures/${id}/status`),
   uploadLecture: (formData) =>
     client.post('/lectures/upload', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
       timeout: 120000,
     }),
   addYouTubeLecture: (url, title) =>
-    client.post('/lectures/youtube', null, { params: { url, title } }),
+    client.post('/lectures/youtube', { url, title }),
   deleteLecture: (id) => client.delete(`/lectures/${id}`),
 
   // Graph

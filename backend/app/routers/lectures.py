@@ -1,7 +1,10 @@
 import uuid
 import logging
+import os
+import tempfile
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, Body, Query
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
@@ -18,12 +21,30 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/lectures", tags=["lectures"])
 
 PROGRESS_MAP = {0: 0, 1: 10, 2: 30, 3: 60, 4: 80, 5: 100}
+LOCAL_UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "lecturemap_uploads")
+
+
+class YouTubeLectureRequest(BaseModel):
+    url: str
+    title: str | None = None
+
+
+def _queue_processing(lecture_id: str, background_tasks: BackgroundTasks) -> str:
+    try:
+        task = process_lecture.delay(lecture_id)
+        return task.id
+    except Exception as e:
+        task_id = f"local-{uuid.uuid4()}"
+        logger.warning("Celery enqueue failed; using FastAPI background task %s: %s", task_id, e)
+        background_tasks.add_task(process_lecture, lecture_id)
+        return task_id
 
 
 # ── Upload file ───────────────────────────────────────────────────────────────
 
 @router.post("/upload", response_model=UploadResponse)
 async def upload_lecture(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     title: str = Form(None),
     current_user: User = Depends(get_current_user),
@@ -51,9 +72,8 @@ async def upload_lecture(
         )
     except Exception as e:
         logger.error(f"Supabase upload failed: {e}")
-        # Store locally as fallback if Supabase not configured
-        import os
-        tmppath = f"/tmp/{lecture_id}{suffix}"
+        os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
+        tmppath = os.path.join(LOCAL_UPLOAD_DIR, f"{lecture_id}{suffix}")
         with open(tmppath, "wb") as f_out:
             f_out.write(content)
         storage_path = tmppath
@@ -70,13 +90,13 @@ async def upload_lecture(
     await db.commit()
     await db.refresh(lecture)
 
-    task = process_lecture.delay(lecture_id)
-    lecture.celery_task_id = task.id
+    task_id = _queue_processing(lecture_id, background_tasks)
+    lecture.celery_task_id = task_id
     await db.commit()
 
     return UploadResponse(
         lecture_id=lecture_id,
-        task_id=task.id,
+        task_id=task_id,
         message="Upload successful. Processing started.",
     )
 
@@ -85,11 +105,17 @@ async def upload_lecture(
 
 @router.post("/youtube", response_model=UploadResponse)
 async def add_youtube_lecture(
-    url: str,
-    title: str = None,
+    background_tasks: BackgroundTasks,
+    payload: YouTubeLectureRequest | None = Body(None),
+    url: str | None = Query(None),
+    title: str | None = Query(None),
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
+    url = (payload.url if payload else url) or ""
+    title = (payload.title if payload and payload.title else title)
+    url = url.strip()
+
     if not is_youtube_url(url):
         raise HTTPException(400, "Invalid YouTube URL")
 
@@ -105,13 +131,13 @@ async def add_youtube_lecture(
     await db.commit()
     await db.refresh(lecture)
 
-    task = process_lecture.delay(lecture_id)
-    lecture.celery_task_id = task.id
+    task_id = _queue_processing(lecture_id, background_tasks)
+    lecture.celery_task_id = task_id
     await db.commit()
 
     return UploadResponse(
         lecture_id=lecture_id,
-        task_id=task.id,
+        task_id=task_id,
         message="YouTube lecture queued for processing.",
     )
 

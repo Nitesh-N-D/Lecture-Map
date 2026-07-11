@@ -10,9 +10,10 @@ logger = logging.getLogger(__name__)
 
 def is_youtube_url(url: str) -> bool:
     youtube_pattern = re.compile(
-        r"(https?://)?(www\.)?(youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)[\w-]+"
+        r"^(https?://)?(www\.)?(m\.)?(youtube\.com/(watch\?.*v=|shorts/|embed/)|youtu\.be/)[\w-]+",
+        re.IGNORECASE,
     )
-    return bool(youtube_pattern.match(url))
+    return bool(youtube_pattern.match((url or "").strip()))
 
 
 async def download_youtube_audio(url: str, output_dir: str) -> str:
@@ -75,8 +76,15 @@ def transcribe_audio(audio_path: str, model_size: str = "base") -> Tuple[str, Li
 
 async def download_from_supabase(storage_path: str, local_path: str) -> str:
     """Download a file from Supabase Storage to a local path."""
+    if os.path.exists(storage_path):
+        logger.info("Using local upload: %s", storage_path)
+        return storage_path
+
     from app.config import settings
     from supabase import create_client
+
+    if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
+        raise RuntimeError("Supabase is not configured and local upload file was not found")
 
     client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
     response = client.storage.from_(settings.SUPABASE_BUCKET).download(storage_path)

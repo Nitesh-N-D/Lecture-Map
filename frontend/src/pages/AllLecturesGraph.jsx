@@ -183,7 +183,7 @@ export default function AllLecturesGraph() {
           <p className="text-xs text-tertiary mt-0.5">
             {data.lecture_count} lectures · {data.nodes.length} concepts ·{' '}
             {bridgeCount > 0 ? (
-              <span className="text-amber-600 dark:text-amber-400 font-medium">{bridgeCount} shared-concept bridges</span>
+              <span className="text-amber-600 font-medium">{bridgeCount} shared-concept bridges</span>
             ) : (
               'no overlapping concepts yet'
             )}

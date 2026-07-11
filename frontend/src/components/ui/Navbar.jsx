@@ -79,7 +79,7 @@ export default function Navbar() {
             <span className="hidden sm:block text-sm text-secondary truncate max-w-[140px]">
               {user?.name || 'Guest'}
               {user?.is_guest && (
-                <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400 rounded px-1.5 py-0.5">guest</span>
+                <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">guest</span>
               )}
             </span>
             <button
@@ -128,7 +128,7 @@ function NavLink({ to, active, children }) {
       to={to}
       className={`flex items-center text-sm px-3 py-1.5 rounded-md transition-colors ${
         active
-          ? 'bg-brand-50 dark:bg-brand-900/30 text-brand-600 dark:text-brand-400 font-medium'
+          ? 'bg-brand-50 text-brand-600 font-medium'
           : 'text-secondary hover:surface-card-hover'
       }`}
     >
