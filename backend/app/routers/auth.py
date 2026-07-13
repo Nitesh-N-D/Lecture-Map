@@ -107,7 +107,10 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
 async def google_login(request: Request):
     if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
         raise HTTPException(501, "Google OAuth not configured")
-    redirect_uri = str(request.url_for("google_callback"))
+    if settings.ENVIRONMENT == "production":
+        redirect_uri = "https://lecture-map-backend.onrender.com/auth/google/callback"
+    else:
+        redirect_uri = "http://localhost:8000/auth/google/callback"
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 

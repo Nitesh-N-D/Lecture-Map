@@ -17,11 +17,25 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting LectureMap API...")
+
+    # PostgreSQL
     await init_db()
-    await neo4j_client.connect()
+
+    # Neo4j (don't crash if unavailable)
+    try:
+        await neo4j_client.connect()
+        logger.info("Neo4j connected")
+    except Exception as e:
+        logger.warning(f"Neo4j unavailable: {e}")
+
     yield
+
     # Shutdown
-    await neo4j_client.close()
+    try:
+        await neo4j_client.close()
+    except Exception:
+        pass
+
     logger.info("LectureMap API shutdown")
 
 
@@ -32,20 +46,30 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── Middleware ────────────────────────────────────────────────────────────────
-
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL, "http://localhost:5173", "http://localhost:3000"],
+    allow_origins=[
+        settings.FRONTEND_URL,
+        "https://lecture-map.vercel.app",
+        "http://localhost:5173",
+        "http://localhost:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-app.add_middleware(SessionMiddleware, secret_key=settings.JWT_SECRET)
+# Session Middleware (IMPORTANT for Google OAuth)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.JWT_SECRET,
+    same_site="lax",
+    https_only=settings.ENVIRONMENT == "production",
+    max_age=3600,
+)
 
-# ── Routers ───────────────────────────────────────────────────────────────────
-
+# Routers
 app.include_router(auth.router)
 app.include_router(lectures.router)
 app.include_router(graph.router)
@@ -55,4 +79,8 @@ app.include_router(export.router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "1.0.0"}
+    return {
+        "status": "ok",
+        "version": "1.0.0",
+        "neo4j": neo4j_client.driver is not None,
+    }
