@@ -4,16 +4,14 @@ from app.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
-
 engine = create_async_engine(
     settings.DATABASE_URL,
+    echo=settings.ENVIRONMENT == "development",
     pool_pre_ping=True,
+    pool_recycle=300,
     pool_size=1,
     max_overflow=0,
-    connect_args={
-        "statement_cache_size": 0,
-    },
-    echo=settings.ENVIRONMENT == "development",
+    connect_args={"statement_cache_size": 0},
 )
 
 AsyncSessionLocal = async_sessionmaker(
