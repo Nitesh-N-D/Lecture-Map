@@ -1,13 +1,14 @@
 {
-  "name": "LectureMap — Turn Lectures Into Knowledge Maps",
+  "name": "LectureMap",
   "short_name": "LectureMap",
-  "description": "Transform lecture audio and video into interactive concept dependency graphs with spaced repetition flashcards.",
+  "description": "Transform lecture audio, video, and YouTube links into concept graphs, study paths, flashcards, and exports.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait-primary",
   "background_color": "#ffffff",
   "theme_color": "#4f46e5",
+  "categories": ["education", "productivity"],
   "icons": [
     {
       "src": "/favicon-16x16.png",
@@ -42,6 +43,5 @@
       "type": "image/png",
       "purpose": "maskable"
     }
-  ],
-  "categories": ["education", "productivity"]
+  ]
 }

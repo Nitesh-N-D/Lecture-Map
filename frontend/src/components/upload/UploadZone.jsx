@@ -147,11 +147,14 @@ export default function UploadZone({ onSubmit }) {
         </div>
       ) : (
         <div className="flex flex-col gap-2">
+          <label className="text-xs font-medium text-secondary" htmlFor="youtube-url">
+            YouTube URL
+          </label>
           <input
+            id="youtube-url"
             type="url"
             value={youtubeUrl}
             onChange={(e) => setYoutubeUrl(e.target.value)}
-            placeholder="https://www.youtube.com/watch?v=..."
             className="w-full bg-white border surface-border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 transition-all text-primary"
           />
           {youtubeUrl && !YOUTUBE_RE.test(youtubeUrl.trim()) && (

@@ -14,7 +14,7 @@ import {
 import useStore from '../../store/useStore'
 
 // Reads the live --text-secondary / --surface-card CSS var so D3-drawn SVG
-// text and tooltip fills follow light/dark theme without a full re-render
+// text and tooltip fills follow the active CSS variables without a full re-render
 // wiring scheme — cheap to call, only invoked on (re)build of the graph.
 function cssVar(name, fallback) {
   if (typeof window === 'undefined') return fallback
@@ -34,7 +34,7 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
   const [ahaPlaying, setAhaPlaying] = useState(false)
   const [ahaIndex, setAhaIndex] = useState(-1)
   const [ahaOrder, setAhaOrder] = useState([])
-  const { visitedNodes, gapNodes, theme } = useStore()
+  const { visitedNodes, gapNodes } = useStore()
 
   // Observe container size
   useEffect(() => {
@@ -162,11 +162,11 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
 
     // Theme-aware colors read once per (re)build
     const labelColor = cssVar('--text-secondary', '#475569')
-    const tooltipBg = cssVar('--surface-card', '#1e293b')
-    const tooltipTitle = cssVar('--text-primary', '#f1f5f9')
+    const tooltipBg = cssVar('--surface-card', '#ffffff')
+    const tooltipTitle = cssVar('--text-primary', '#0f172a')
     const tooltipBody = cssVar('--text-tertiary', '#94a3b8')
-    const tooltipBorder = cssVar('--surface-border', '#334155')
-    const linkColor = theme === 'dark' ? '#475569' : '#94a3b8'
+    const tooltipBorder = cssVar('--surface-border', '#e2e8f0')
+    const linkColor = '#94a3b8'
 
     // Clear previous
     const svg = d3.select(svgRef.current)
@@ -261,7 +261,7 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
       .attr('r', (d) => getNodeRadius(d.difficulty))
       .attr('fill', (d) => getNodeColor(d.difficulty, gapNodes.has(d.concept_id), visitedNodes.has(d.concept_id)))
       .attr('fill-opacity', (d) => visitedNodes.has(d.concept_id) ? 1.0 : 0.75)
-      .attr('stroke', (d) => gapNodes.has(d.concept_id) ? '#dc2626' : (theme === 'dark' ? '#0b1120' : '#fff'))
+      .attr('stroke', (d) => gapNodes.has(d.concept_id) ? '#dc2626' : '#fff')
       .attr('stroke-width', (d) => gapNodes.has(d.concept_id) ? 2.5 : 1.5)
       .attr('filter', (d) => gapNodes.has(d.concept_id) ? 'url(#glow)' : null)
 
@@ -344,7 +344,7 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
       simulation.stop()
       stopAhaPath()
     }
-  }, [data, dims, filterDiff, visitedNodes, gapNodes, theme])
+  }, [data, dims, filterDiff, visitedNodes, gapNodes])
 
   const diffCounts = {
     all: data?.nodes?.length || 0,

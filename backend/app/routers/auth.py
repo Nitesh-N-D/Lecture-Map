@@ -5,7 +5,6 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from authlib.integrations.starlette_client import OAuth
-from starlette.config import Config
 
 from app.database import get_db
 from app.models.user import User, UserRole
@@ -17,16 +16,15 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 # ── OAuth Setup ─────────────────────────────────────────────────────────────
-oauth_config = Config(environ={
-    "GOOGLE_CLIENT_ID": settings.GOOGLE_CLIENT_ID or "placeholder",
-    "GOOGLE_CLIENT_SECRET": settings.GOOGLE_CLIENT_SECRET or "placeholder",
-})
-oauth = OAuth(oauth_config)
-oauth.register(
-    name="google",
-    server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-    client_kwargs={"scope": "openid email profile"},
-)
+oauth = OAuth()
+if settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET:
+    oauth.register(
+        name="google",
+        client_id=settings.GOOGLE_CLIENT_ID,
+        client_secret=settings.GOOGLE_CLIENT_SECRET,
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid email profile"},
+    )
 
 
 # ── Email / Password ────────────────────────────────────────────────────────
@@ -109,7 +107,7 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
 async def google_login(request: Request):
     if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
         raise HTTPException(501, "Google OAuth not configured")
-    redirect_uri = f"{settings.FRONTEND_URL}/auth/callback"
+    redirect_uri = str(request.url_for("google_callback"))
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
