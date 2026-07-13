@@ -14,12 +14,16 @@ class Neo4jClient:
         if not settings.NEO4J_URI:
             logger.warning("NEO4J_URI not set — graph features disabled")
             return
-        self._driver = AsyncGraphDatabase.driver(
-            settings.NEO4J_URI,
-            auth=(settings.NEO4J_USERNAME, settings.NEO4J_PASSWORD),
-        )
-        await self._driver.verify_connectivity()
-        logger.info("Neo4j connected")
+        try:
+            self._driver = AsyncGraphDatabase.driver(
+                settings.NEO4J_URI,
+                auth=(settings.NEO4J_USERNAME, settings.NEO4J_PASSWORD),
+            )
+            await self._driver.verify_connectivity()
+            logger.info("Neo4j connected")
+        except Exception as e:
+            logger.error(f"Neo4j connection failed, graph features disabled: {e}")
+            self._driver = None
 
     async def close(self):
         if self._driver:
