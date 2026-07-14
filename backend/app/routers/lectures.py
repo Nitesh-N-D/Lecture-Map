@@ -14,7 +14,7 @@ from app.models.lecture import Lecture, LectureStatus
 from app.auth import get_current_user
 from app.schemas.lecture import LectureResponse, LectureStatusResponse, UploadResponse
 from app.config import settings
-from app.tasks.pipeline import process_lecture, run_lecture_pipeline
+from app.tasks.pipeline import process_lecture, process_lecture_direct
 from app.services.transcription import is_youtube_url
 
 logger = logging.getLogger(__name__)
@@ -30,18 +30,21 @@ class YouTubeLectureRequest(BaseModel):
 
 
 def _queue_processing(lecture_id: str, background_tasks: BackgroundTasks) -> str:
-    if settings.ENVIRONMENT != "production":
-        task_id = f"local-{uuid.uuid4()}"
-        background_tasks.add_task(run_lecture_pipeline, lecture_id)
+    if not settings.USE_CELERY:
+        # No Celery worker to consume the queue (e.g. Render free plan,
+        # which only offers background workers on paid plans). Run the
+        # pipeline in-process instead, so lectures don't sit PENDING
+        # forever with an empty progress bar.
+        task_id = f"bg-{uuid.uuid4()}"
+        background_tasks.add_task(process_lecture_direct, lecture_id)
         return task_id
-
     try:
         task = process_lecture.delay(lecture_id)
         return task.id
     except Exception as e:
         task_id = f"local-{uuid.uuid4()}"
         logger.warning("Celery enqueue failed; using FastAPI background task %s: %s", task_id, e)
-        background_tasks.add_task(run_lecture_pipeline, lecture_id)
+        background_tasks.add_task(process_lecture_direct, lecture_id)
         return task_id
 
 
@@ -63,27 +66,20 @@ async def upload_lecture(
     lecture_id = str(uuid.uuid4())
     storage_path = f"{current_user.id}/{lecture_id}{suffix}"
 
+    # Read file content once
     content = await file.read()
-    if not content:
-        raise HTTPException(400, "Uploaded file is empty")
 
-    if settings.SUPABASE_URL and settings.SUPABASE_KEY:
-        try:
-            from supabase import create_client
-            client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-            client.storage.from_(settings.SUPABASE_BUCKET).upload(
-                path=storage_path,
-                file=content,
-                file_options={"content-type": file.content_type or "audio/mpeg"},
-            )
-        except Exception as e:
-            logger.error("Supabase upload failed: %s", e)
-            os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
-            tmppath = os.path.join(LOCAL_UPLOAD_DIR, f"{lecture_id}{suffix}")
-            with open(tmppath, "wb") as f_out:
-                f_out.write(content)
-            storage_path = tmppath
-    else:
+    # Upload to Supabase Storage
+    try:
+        from supabase import create_client
+        client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+        client.storage.from_(settings.SUPABASE_BUCKET).upload(
+            path=storage_path,
+            file=content,
+            file_options={"content-type": file.content_type or "audio/mpeg"},
+        )
+    except Exception as e:
+        logger.error(f"Supabase upload failed: {e}")
         os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
         tmppath = os.path.join(LOCAL_UPLOAD_DIR, f"{lecture_id}{suffix}")
         with open(tmppath, "wb") as f_out:

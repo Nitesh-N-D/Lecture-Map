@@ -2,8 +2,6 @@ import os
 import tempfile
 import logging
 import asyncio
-from datetime import datetime
-
 import app.models
 from app.celery_app import celery_app
 
@@ -17,7 +15,7 @@ STEP_FLASHCARDS = 5
 
 
 def _run_async(coro):
-    """Run an async coroutine from the synchronous worker pipeline."""
+    """Run async coroutine from sync Celery task."""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
@@ -26,84 +24,103 @@ def _run_async(coro):
         loop.close()
 
 
-def _sync_database_url(database_url: str) -> str:
-    if database_url.startswith("postgresql+asyncpg://"):
-        return database_url.replace("postgresql+asyncpg://", "postgresql://", 1)
-    if database_url.startswith("sqlite+aiosqlite:///"):
-        return database_url.replace("sqlite+aiosqlite:///", "sqlite:///", 1)
-    return database_url.replace("+asyncpg", "").replace("+aiosqlite", "")
+@celery_app.task(bind=True, max_retries=2, name="tasks.process_lecture")
+def process_lecture(self, lecture_id: str):
+    """Celery entrypoint (used by local docker-compose, which runs a real
+    worker). Delegates to _process_lecture_impl and retries on failure."""
+    _process_lecture_impl(lecture_id, celery_task=self)
 
 
-def run_lecture_pipeline(lecture_id: str) -> None:
+def process_lecture_direct(lecture_id: str):
+    """Plain-function entrypoint for environments with no Celery worker
+    (e.g. Render's free plan, which has no free background-worker tier).
+    Called via FastAPI BackgroundTasks instead of celery .delay()."""
+    _process_lecture_impl(lecture_id, celery_task=None)
+
+
+def _process_lecture_impl(lecture_id: str, celery_task=None):
     """
-    Process one lecture end-to-end.
-
-    This function is deliberately plain synchronous Python so it can run
-    either in Celery or as a FastAPI background-task fallback when Redis
-    is unavailable.
+    Main pipeline logic, shared by both entrypoints above:
+    1. Download audio (YouTube or Supabase)
+    2. Transcribe with Whisper
+    3. Extract concepts + edges with Gemini
+    4. Store graph in Neo4j
+    5. Generate flashcards
     """
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
     from app.config import settings
-    from app.models.lecture import Lecture, LectureStatus
 
-    engine = create_engine(_sync_database_url(settings.DATABASE_URL), pool_pre_ping=True)
+    # Use sync engine for Celery (asyncpg can't run in Celery easily)
+    sync_db_url = settings.DATABASE_URL.replace("+asyncpg", "")
+    engine = create_engine(sync_db_url, pool_pre_ping=True)
     SessionLocal = sessionmaker(bind=engine)
     db = SessionLocal()
 
     try:
+        from app.models.lecture import Lecture, LectureStatus
+
         lecture = db.query(Lecture).filter(Lecture.id == lecture_id).first()
         if not lecture:
-            logger.error("Lecture %s not found", lecture_id)
+            logger.error(f"Lecture {lecture_id} not found")
             return
 
         def update_status(status, step=None, error=None):
             lecture.status = status
             if step is not None:
                 lecture.progress_step = step
-            if error is not None:
+            if error:
                 lecture.error_message = error
             db.commit()
             db.refresh(lecture)
 
-        update_status(LectureStatus.PROCESSING, step=0, error=None)
+        update_status(LectureStatus.PROCESSING, step=0)
 
         with tempfile.TemporaryDirectory() as tmpdir:
+            audio_path = None
+
+            # ── Step 1: Download ────────────────────────────────────────
             update_status(LectureStatus.PROCESSING, step=STEP_DOWNLOAD)
 
             if lecture.youtube_url:
+                logger.info(f"Downloading YouTube: {lecture.youtube_url}")
                 from app.services.transcription import download_youtube_audio
-
-                logger.info("Downloading YouTube lecture %s", lecture.youtube_url)
-                audio_path = _run_async(download_youtube_audio(lecture.youtube_url, tmpdir))
+                audio_path = _run_async(
+                    download_youtube_audio(lecture.youtube_url, tmpdir)
+                )
+                if not lecture.title:
+                    import re
+                    lecture.title = f"YouTube Lecture"
+                    db.commit()
             elif lecture.storage_path:
+                local_path = os.path.join(tmpdir, "lecture_audio.mp3")
                 from app.services.transcription import download_from_supabase
-
-                local_path = os.path.join(tmpdir, "lecture_audio")
-                audio_path = _run_async(download_from_supabase(lecture.storage_path, local_path))
+                audio_path = _run_async(
+                    download_from_supabase(lecture.storage_path, local_path)
+                )
             else:
-                raise ValueError("No audio source found for this lecture")
+                raise ValueError("No audio source: neither youtube_url nor storage_path set")
 
+            # ── Step 2: Transcribe ──────────────────────────────────────
             update_status(LectureStatus.PROCESSING, step=STEP_TRANSCRIBE)
             from app.services.transcription import transcribe_audio
-
             transcript, segments = transcribe_audio(audio_path, model_size="base")
-            if not transcript.strip():
-                raise ValueError("Transcription produced no text")
 
             lecture.transcript = transcript
             if segments:
                 lecture.duration_seconds = int(segments[-1]["end"])
             db.commit()
 
+            # ── Step 3: Extract concepts ────────────────────────────────
             update_status(LectureStatus.PROCESSING, step=STEP_EXTRACT)
             from app.services.concept_extraction import extract_concepts_and_edges
-
-            graph_data = _run_async(extract_concepts_and_edges(transcript, lecture_id))
+            graph_data = _run_async(
+                extract_concepts_and_edges(transcript, lecture_id)
+            )
             concepts = graph_data.get("concepts", [])
-            if not concepts:
-                raise ValueError("No concepts were extracted from the transcript")
+            edges = graph_data.get("edges", [])
 
+            # ── Step 4: Store in Neo4j ──────────────────────────────────
             update_status(LectureStatus.PROCESSING, step=STEP_GRAPH)
             from app.services.graph_service import store_graph
             from app.neo4j_client import neo4j_client
@@ -117,78 +134,58 @@ def run_lecture_pipeline(lecture_id: str) -> None:
             lecture.edge_count = edge_count
             db.commit()
 
+            # ── Step 5: Generate flashcards ─────────────────────────────
             update_status(LectureStatus.PROCESSING, step=STEP_FLASHCARDS)
             from app.models.flashcard import Flashcard
             from app.services.concept_extraction import generate_flashcards_for_concept
+            from datetime import datetime
 
             flashcard_count = 0
             for concept in concepts:
-                concept_id = concept.get("id")
-                concept_name = concept.get("name")
-                definition = concept.get("definition") or ""
-                if not concept_id or not concept_name:
-                    continue
-
-                cards = _run_async(
-                    generate_flashcards_for_concept(
-                        concept_name=concept_name,
-                        definition=definition,
+                try:
+                    cards = _run_async(generate_flashcards_for_concept(
+                        concept_name=concept["name"],
+                        definition=concept["definition"],
                         context=transcript[:3000],
-                    )
-                )
-                for card_data in cards:
-                    question = card_data.get("question")
-                    answer = card_data.get("answer")
-                    if not question or not answer:
-                        continue
-                    db.add(
-                        Flashcard(
+                    ))
+                    for card_data in cards:
+                        card = Flashcard(
                             lecture_id=lecture_id,
-                            concept_id=concept_id,
-                            concept_name=concept_name,
-                            question=question,
-                            answer=answer,
+                            concept_id=concept["id"],
+                            concept_name=concept["name"],
+                            question=card_data["question"],
+                            answer=card_data["answer"],
                             next_review_at=datetime.utcnow(),
                         )
-                    )
-                    flashcard_count += 1
-
-            if flashcard_count == 0:
-                raise ValueError("No flashcards were generated")
+                        db.add(card)
+                        flashcard_count += 1
+                except Exception as e:
+                    logger.error(f"Flashcard gen error for {concept['id']}: {e}")
 
             db.commit()
             lecture.flashcard_count = flashcard_count
 
+            # Auto-title if not set
             if not lecture.title:
                 lecture.title = f"Lecture ({node_count} concepts)"
 
-            update_status(LectureStatus.COMPLETED, step=STEP_FLASHCARDS)
-            logger.info(
-                "Pipeline complete for lecture %s: %s concepts, %s edges, %s flashcards",
-                lecture_id,
-                node_count,
-                edge_count,
-                flashcard_count,
-            )
+            update_status(LectureStatus.COMPLETED, step=5)
+            logger.info(f"Pipeline complete for lecture {lecture_id}: "
+                        f"{node_count} concepts, {edge_count} edges, {flashcard_count} flashcards")
 
     except Exception as e:
-        logger.exception("Pipeline failed for lecture %s: %s", lecture_id, e)
+        logger.exception(f"Pipeline failed for lecture {lecture_id}: {e}")
         try:
+            from app.models.lecture import LectureStatus
             lecture = db.query(Lecture).filter(Lecture.id == lecture_id).first()
             if lecture:
                 lecture.status = LectureStatus.FAILED
                 lecture.error_message = str(e)
                 db.commit()
         except Exception:
-            logger.exception("Failed to persist pipeline error for lecture %s", lecture_id)
+            pass
+        if celery_task is not None:
+            raise celery_task.retry(exc=e, countdown=30)
         raise
     finally:
         db.close()
-
-
-@celery_app.task(bind=True, max_retries=2, name="tasks.process_lecture")
-def process_lecture(self, lecture_id: str):
-    try:
-        run_lecture_pipeline(lecture_id)
-    except Exception as e:
-        raise self.retry(exc=e, countdown=30)

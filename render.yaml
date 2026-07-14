@@ -50,38 +50,49 @@ services:
         sync: false
       - key: ENVIRONMENT
         value: production
+      - key: USE_CELERY
+        value: "false"
 
-  # ── Celery background worker ────────────────────────────────────────
-  # Runs the same image as the API but as a worker process instead of a
-  # web service — handles transcription, concept extraction, and
-  # flashcard generation off the request/response cycle.
-  - type: worker
-    name: lecturemap-worker
-    runtime: docker
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
-    dockerCommand: celery -A app.celery_app worker --loglevel=info --concurrency=2
-    plan: free
-    envVars:
-      - key: DATABASE_URL
-        sync: false
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_KEY
-        sync: false
-      - key: SUPABASE_BUCKET
-        value: lecture-files
-      - key: NEO4J_URI
-        sync: false
-      - key: NEO4J_USERNAME
-        value: neo4j
-      - key: NEO4J_PASSWORD
-        sync: false
-      - key: REDIS_URL
-        sync: false
-      - key: GEMINI_API_KEY
-        sync: false
-      - key: JWT_SECRET
-        sync: false
-      - key: ENVIRONMENT
-        value: production
+  # ── Celery background worker (DISABLED — needs a paid plan) ─────────
+  # Render's free plan only covers web services; the "worker" service
+  # type requires Starter ($7/mo) or above — there is no free tier for
+  # it. Deploying this block on plan: free either fails or silently
+  # never runs, so Celery tasks sit PENDING forever with nobody to
+  # consume them (this was the "stuck at Processing lecture..." bug).
+  #
+  # With USE_CELERY=false above, the web service now processes lectures
+  # itself via FastAPI BackgroundTasks, so this block isn't needed.
+  # If you later upgrade to a paid plan and want a real worker for
+  # heavier throughput, uncomment this, set USE_CELERY back to "true"
+  # on the web service, and change plan below from "free" to "starter":
+  #
+  # - type: worker
+  #   name: lecturemap-worker
+  #   runtime: docker
+  #   dockerfilePath: ./backend/Dockerfile
+  #   dockerContext: ./backend
+  #   dockerCommand: celery -A app.celery_app worker --loglevel=info --concurrency=2
+  #   plan: starter
+  #   envVars:
+  #     - key: DATABASE_URL
+  #       sync: false
+  #     - key: SUPABASE_URL
+  #       sync: false
+  #     - key: SUPABASE_KEY
+  #       sync: false
+  #     - key: SUPABASE_BUCKET
+  #       value: lecture-files
+  #     - key: NEO4J_URI
+  #       sync: false
+  #     - key: NEO4J_USERNAME
+  #       value: neo4j
+  #     - key: NEO4J_PASSWORD
+  #       sync: false
+  #     - key: REDIS_URL
+  #       sync: false
+  #     - key: GEMINI_API_KEY
+  #       sync: false
+  #     - key: JWT_SECRET
+  #       sync: false
+  #     - key: ENVIRONMENT
+  #       value: production

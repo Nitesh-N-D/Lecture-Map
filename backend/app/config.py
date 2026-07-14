@@ -4,7 +4,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # Database
-    DATABASE_URL: str = "sqlite+aiosqlite:///./lecturemap.db"
+    DATABASE_URL: str = "postgresql+asyncpg://dev:dev@localhost:5432/lecturemap"
     
     # Supabase
     SUPABASE_URL: str = ""
@@ -18,6 +18,13 @@ class Settings(BaseSettings):
     
     # Redis (Upstash)
     REDIS_URL: str = "redis://localhost:6379"
+
+    # Set to False on Render (free plan has no background-worker tier, so
+    # there's nothing to consume the Celery queue — tasks would sit
+    # PENDING forever). Leave True for local docker-compose, which runs a
+    # real Celery worker + Redis. When False, lectures are processed
+    # in-process via FastAPI BackgroundTasks on the web service instead.
+    USE_CELERY: bool = True
     
     # AI
     GEMINI_API_KEY: str = ""
