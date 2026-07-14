@@ -4,7 +4,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://dev:dev@localhost:5432/lecturemap"
+    DATABASE_URL: str = "sqlite+aiosqlite:///./lecturemap.db"
     
     # Supabase
     SUPABASE_URL: str = ""

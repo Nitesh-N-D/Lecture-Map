@@ -1,7 +1,6 @@
 import json
 import logging
 import re
-from typing import Optional
 
 import google.generativeai as genai
 from app.config import settings
@@ -13,7 +12,7 @@ EXTRACTION_PROMPT = """You are an expert knowledge graph builder. Given this lec
 1. Key concepts (15-30 concepts for a 1-hour lecture, fewer for shorter content)
 2. Prerequisite dependency edges between concepts
 
-Return ONLY valid JSON with this exact structure (no markdown, no explanation):
+Return ONLY valid JSON with this exact structure:
 {{
   "concepts": [
     {{
@@ -34,12 +33,12 @@ Return ONLY valid JSON with this exact structure (no markdown, no explanation):
 }}
 
 Rules:
-- An edge from A → B means "you must understand A before B"
-- strength is 0.0-1.0 (how strongly A is needed for B)
-- timestamp_seconds: approximate second in lecture where concept is first introduced
-- Extract REAL prerequisite relationships, not just topic associations
-- Concepts should form a DAG (directed acyclic graph) — no cycles
-- ids must be unique, snake_case, descriptive (e.g., "binary_search", "time_complexity")
+- An edge from A to B means "you must understand A before B"
+- strength is 0.0-1.0
+- timestamp_seconds is the approximate second where the concept first appears
+- Extract real prerequisite relationships, not just topic associations
+- Concepts should form a DAG with no cycles
+- ids must be unique, snake_case, and descriptive
 
 Transcript:
 {transcript}
@@ -52,7 +51,7 @@ Concept: {concept_name}
 Definition: {definition}
 Lecture context: {context}
 
-Return ONLY valid JSON array (no markdown):
+Return ONLY valid JSON array:
 [
   {{
     "question": "Clear, specific question testing deep understanding",
@@ -66,115 +65,106 @@ Return ONLY valid JSON array (no markdown):
 
 Rules:
 - Questions should require understanding, not just recall
-- No "What is..." questions — use "How does...", "Why does...", "What happens when..."
+- Avoid shallow wording such as "What is..."
 - Answers should be self-contained and precise
 """
 
 
 def _configure_gemini():
+    if not settings.GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY is not configured")
     genai.configure(api_key=settings.GEMINI_API_KEY)
     return genai.GenerativeModel("gemini-1.5-flash")
 
 
+def _load_json_from_model_text(raw_text: str):
+    raw_text = raw_text.strip()
+    raw_text = re.sub(r"^```json\s*", "", raw_text)
+    raw_text = re.sub(r"\s*```$", "", raw_text)
+
+    try:
+        return json.loads(raw_text)
+    except json.JSONDecodeError:
+        match = re.search(r"(\{.*\}|\[.*\])", raw_text, re.DOTALL)
+        if not match:
+            raise
+        return json.loads(match.group(1))
+
+
 def _validate_dag(concepts: list, edges: list) -> tuple[list, list]:
-    """Validate that edges form a DAG — remove cycles if found."""
-    concept_ids = {c["id"] for c in concepts}
-    
-    # Filter edges to only reference existing concepts
+    concept_ids = {concept.get("id") for concept in concepts if concept.get("id")}
     valid_edges = [
-        e for e in edges
-        if e.get("from") in concept_ids and e.get("to") in concept_ids
-        and e.get("from") != e.get("to")
+        edge for edge in edges
+        if edge.get("from") in concept_ids
+        and edge.get("to") in concept_ids
+        and edge.get("from") != edge.get("to")
     ]
 
-    # Topological sort to detect cycles
     from collections import defaultdict, deque
+
     in_degree = defaultdict(int)
-    adj = defaultdict(list)
+    adjacency = defaultdict(list)
 
-    for e in valid_edges:
-        adj[e["from"]].append(e["to"])
-        in_degree[e["to"]] += 1
+    for edge in valid_edges:
+        adjacency[edge["from"]].append(edge["to"])
+        in_degree[edge["to"]] += 1
 
-    queue = deque([cid for cid in concept_ids if in_degree[cid] == 0])
+    queue = deque([concept_id for concept_id in concept_ids if in_degree[concept_id] == 0])
     topo_order = []
 
     while queue:
         node = queue.popleft()
         topo_order.append(node)
-        for neighbor in adj[node]:
+        for neighbor in adjacency[node]:
             in_degree[neighbor] -= 1
             if in_degree[neighbor] == 0:
                 queue.append(neighbor)
 
     if len(topo_order) < len(concept_ids):
-        # Cycle detected — remove back edges
-        visited_set = set(topo_order)
-        acyclic_edges = []
-        for e in valid_edges:
-            if e["from"] in visited_set and e["to"] in visited_set:
-                acyclic_edges.append(e)
-        logger.warning("Cycle detected in concept graph — pruned back edges")
-        return concepts, acyclic_edges
+        keep = set(topo_order)
+        valid_edges = [
+            edge for edge in valid_edges
+            if edge["from"] in keep and edge["to"] in keep
+        ]
+        logger.warning("Cycle detected in concept graph; pruned cyclic edges")
 
     return concepts, valid_edges
 
 
 async def extract_concepts_and_edges(transcript: str, lecture_id: str) -> dict:
-    """
-    Use Gemini Flash to extract concepts + edges from transcript.
-    Returns validated GraphData dict.
-    """
-    if not settings.GEMINI_API_KEY:
-        logger.warning("GEMINI_API_KEY not set — returning empty graph")
-        return {"concepts": [], "edges": []}
+    if not transcript.strip():
+        raise RuntimeError("Transcript is empty")
 
     model = _configure_gemini()
 
-    # Truncate very long transcripts to fit context window (~30k tokens safe)
     max_chars = 80_000
     if len(transcript) > max_chars:
-        logger.info(f"Truncating transcript from {len(transcript)} to {max_chars} chars")
+        logger.info("Truncating transcript from %s to %s chars", len(transcript), max_chars)
         transcript = transcript[:max_chars] + "\n[transcript truncated]"
 
-    prompt = EXTRACTION_PROMPT.format(transcript=transcript)
-
-    logger.info("Calling Gemini Flash for concept extraction...")
     response = model.generate_content(
-        prompt,
+        EXTRACTION_PROMPT.format(transcript=transcript),
         generation_config=genai.GenerationConfig(
             temperature=0.3,
             max_output_tokens=8192,
         ),
     )
 
-    raw_text = response.text.strip()
-
-    # Strip markdown code fences if present
-    raw_text = re.sub(r"^```json\s*", "", raw_text)
-    raw_text = re.sub(r"\s*```$", "", raw_text)
-
     try:
-        data = json.loads(raw_text)
-    except json.JSONDecodeError as e:
-        logger.error(f"Gemini returned invalid JSON: {e}\nRaw: {raw_text[:500]}")
-        # Attempt partial extraction
-        match = re.search(r'\{.*\}', raw_text, re.DOTALL)
-        if match:
-            try:
-                data = json.loads(match.group())
-            except Exception:
-                return {"concepts": [], "edges": []}
-        else:
-            return {"concepts": [], "edges": []}
+        data = _load_json_from_model_text(response.text)
+    except Exception as e:
+        raise RuntimeError(f"Gemini returned invalid concept JSON: {e}") from e
 
     concepts = data.get("concepts", [])
     edges = data.get("edges", [])
+    if not isinstance(concepts, list) or not isinstance(edges, list):
+        raise RuntimeError("Gemini concept response has an invalid shape")
 
-    # Validate DAG
     concepts, edges = _validate_dag(concepts, edges)
+    if not concepts:
+        raise RuntimeError("Gemini extracted no concepts")
 
-    logger.info(f"Extracted {len(concepts)} concepts and {len(edges)} edges")
+    logger.info("Extracted %s concepts and %s edges", len(concepts), len(edges))
     return {"concepts": concepts, "edges": edges}
 
 
@@ -183,10 +173,6 @@ async def generate_flashcards_for_concept(
     definition: str,
     context: str = "",
 ) -> list:
-    """Generate Q&A flashcard pairs for a concept using Gemini Flash."""
-    if not settings.GEMINI_API_KEY:
-        return []
-
     model = _configure_gemini()
     prompt = FLASHCARD_PROMPT.format(
         concept_name=concept_name,
@@ -202,17 +188,15 @@ async def generate_flashcards_for_concept(
                 max_output_tokens=1024,
             ),
         )
-        raw_text = response.text.strip()
-        raw_text = re.sub(r"^```json\s*", "", raw_text)
-        raw_text = re.sub(r"\s*```$", "", raw_text)
-        cards = json.loads(raw_text)
-        return cards if isinstance(cards, list) else []
+        cards = _load_json_from_model_text(response.text)
+        if not isinstance(cards, list):
+            raise RuntimeError("Gemini flashcard response is not a JSON array")
+        return cards
     except Exception as e:
-        logger.error(f"Flashcard generation failed for '{concept_name}': {e}")
-        # Return a fallback card
+        logger.error("Flashcard generation failed for %s: %s", concept_name, e)
         return [
             {
-                "question": f"What is {concept_name} and why is it important?",
-                "answer": definition,
+                "question": f"How does {concept_name} matter in this lecture?",
+                "answer": definition or f"{concept_name} was identified as an important lecture concept.",
             }
         ]

@@ -24,7 +24,10 @@ async def lifespan(app: FastAPI):
     # Neo4j (don't crash if unavailable)
     try:
         await neo4j_client.connect()
-        logger.info("Neo4j connected")
+        if neo4j_client.driver:
+            logger.info("Neo4j connected")
+        else:
+            logger.info("Neo4j disabled")
     except Exception as e:
         logger.warning(f"Neo4j unavailable: {e}")
 

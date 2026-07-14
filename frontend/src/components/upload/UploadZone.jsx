@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { api } from '../../api/client'
+import Button from '../ui/Button'
 import toast from 'react-hot-toast'
 
 const YOUTUBE_RE = /^(https?:\/\/)?(www\.)?(m\.)?(youtube\.com\/(watch\?.*v=|shorts\/|embed\/)|youtu\.be\/)[\w-]+/i
@@ -102,16 +103,15 @@ export default function UploadZone({ onSubmit }) {
 
       <div className="flex gap-1 bg-slate-100 p-1 rounded-lg mb-5">
         {['file', 'youtube'].map((m) => (
-          <button
+          <Button
             key={m}
-            type="button"
+            variant={mode === m ? 'secondary' : 'ghost'}
+            size="sm"
             onClick={() => setMode(m)}
-            className={`flex-1 text-sm py-1.5 rounded-md transition-all font-medium ${
-              mode === m ? 'bg-white shadow-sm text-primary' : 'text-secondary hover:text-primary'
-            }`}
+            className="flex-1"
           >
             {m === 'file' ? 'Audio/video file' : 'YouTube URL'}
-          </button>
+          </Button>
         ))}
       </div>
 
@@ -163,11 +163,10 @@ export default function UploadZone({ onSubmit }) {
         </div>
       )}
 
-      <button
-        type="button"
+      <Button
         onClick={handleSubmit}
         disabled={loading || (mode === 'file' ? !file : !youtubeUrl.trim())}
-        className="mt-5 w-full bg-brand-600 text-white py-2.5 rounded-lg font-medium text-sm hover:bg-brand-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+        className="mt-5 w-full gap-2"
       >
         {loading ? (
           <>
@@ -177,7 +176,7 @@ export default function UploadZone({ onSubmit }) {
         ) : (
           'Build knowledge graph'
         )}
-      </button>
+      </Button>
     </div>
   )
 }

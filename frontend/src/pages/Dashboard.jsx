@@ -6,6 +6,7 @@ import UploadZone from '../components/upload/UploadZone'
 import ProcessingStatus from '../components/upload/ProcessingStatus'
 import ProgressRing from '../components/ui/ProgressRing'
 import MasteryHeatmap from '../components/ui/MasteryHeatmap'
+import Button from '../components/ui/Button'
 import toast from 'react-hot-toast'
 
 const STATUS_COLORS = {
@@ -90,12 +91,12 @@ export default function Dashboard() {
               Knowledge Map
             </Link>
           )}
-          <button
+          <Button
             onClick={() => setShowUpload(!showUpload)}
-            className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 transition-colors flex-1 sm:flex-none"
+            className="flex-1 sm:flex-none"
           >
             {showUpload ? 'Close upload' : 'Add lecture'}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -133,9 +134,9 @@ export default function Dashboard() {
       {loadError && (
         <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4 text-sm text-red-700 flex items-center justify-between gap-3">
           <span>{loadError}</span>
-          <button onClick={loadLectures} className="font-medium text-red-800 hover:underline">
+          <Button variant="ghost" size="sm" onClick={loadLectures} className="text-red-800">
             Retry
-          </button>
+          </Button>
         </div>
       )}
 
@@ -149,12 +150,13 @@ export default function Dashboard() {
         <div className="text-center py-16 sm:py-20 text-tertiary border border-dashed surface-border rounded-xl bg-white">
           <p className="font-medium text-secondary mb-2">No lectures yet</p>
           <p className="text-sm px-4">Add your first audio, video, or YouTube lecture to get started.</p>
-          <button
+          <Button
+            variant="ghost"
             onClick={() => setShowUpload(true)}
-            className="mt-4 text-sm text-brand-600 font-medium hover:text-brand-700"
+            className="mt-4 text-brand-600"
           >
             Upload a lecture
-          </button>
+          </Button>
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-3">
@@ -214,13 +216,15 @@ function LectureCard({ lecture, onDelete }) {
           <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_COLORS[lecture.status] || STATUS_COLORS.PENDING}`}>
             {lecture.status === 'PROCESSING' ? 'Processing' : lecture.status}
           </span>
-          <button
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={(e) => onDelete(lecture.id, e)}
-            className="sm:opacity-0 sm:group-hover:opacity-100 text-tertiary hover:text-red-500 transition-all text-sm"
+            className="sm:opacity-0 sm:group-hover:opacity-100 text-tertiary hover:text-red-500"
             aria-label={`Delete ${lecture.title || 'lecture'}`}
           >
             Delete
-          </button>
+          </Button>
         </div>
       </div>
     </Link>

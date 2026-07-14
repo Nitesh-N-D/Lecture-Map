@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
 import useStore from '../../store/useStore'
+import Button from './Button'
 import toast from 'react-hot-toast'
 
 const GOOGLE_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/auth/google`
@@ -92,9 +93,9 @@ export default function AuthModal({ open, onClose, initialMode = 'login' }) {
           <h2 className="text-lg font-semibold text-primary">
             {mode === 'login' ? 'Welcome back' : 'Create your account'}
           </h2>
-          <button onClick={onClose} aria-label="Close" className="text-tertiary hover:text-secondary text-xl leading-none">
+          <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close" className="px-2">
             x
-          </button>
+          </Button>
         </div>
         <p className="text-sm text-tertiary mb-5">
           {mode === 'login'
@@ -155,14 +156,14 @@ export default function AuthModal({ open, onClose, initialMode = 'login' }) {
             <p className="text-xs text-red-500 animate-fade-in">{error}</p>
           )}
 
-          <button
+          <Button
             type="submit"
             disabled={loading}
-            className="w-full bg-brand-600 text-white py-2.5 rounded-lg font-medium text-sm hover:bg-brand-700 disabled:opacity-50 transition-colors mt-1 flex items-center justify-center gap-2"
+            className="w-full mt-1 gap-2"
           >
             {loading && <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
             {mode === 'login' ? 'Sign in' : 'Create account'}
-          </button>
+          </Button>
         </form>
 
         <p className="text-center text-xs text-tertiary mt-4">
@@ -181,13 +182,14 @@ export default function AuthModal({ open, onClose, initialMode = 'login' }) {
           )}
         </p>
 
-        <button
+        <Button
+          variant="ghost"
           onClick={handleGuestLogin}
           disabled={loading}
-          className="w-full text-center text-xs text-tertiary hover:text-secondary mt-4 transition-colors"
+          className="w-full mt-4 text-xs text-tertiary"
         >
           Continue as guest without signup
-        </button>
+        </Button>
       </div>
     </div>
   )

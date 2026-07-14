@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import useStore from '../store/useStore'
 import AuthModal from '../components/ui/AuthModal'
 import UploadZone from '../components/upload/UploadZone'
+import Button from '../components/ui/Button'
 import toast from 'react-hot-toast'
 
 export default function Landing() {
@@ -38,18 +39,19 @@ export default function Landing() {
               spaced-repetition flashcards, and exports from the same source material.
             </p>
             <div className="flex flex-col sm:flex-row gap-3">
-              <button
+              <Button
                 onClick={handleTryFree}
-                className="bg-brand-600 text-white px-6 py-3 rounded-lg font-semibold text-sm hover:bg-brand-700 transition-colors shadow-sm"
+                size="lg"
               >
                 Start as guest
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
+                size="lg"
                 onClick={() => setAuthModal('signup')}
-                className="border border-slate-300 text-slate-700 px-6 py-3 rounded-lg font-semibold text-sm hover:bg-white transition-colors"
               >
                 Create account
-              </button>
+              </Button>
             </div>
             <button
               onClick={() => setAuthModal('login')}

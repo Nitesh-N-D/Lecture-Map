@@ -1,4 +1,3 @@
-from neo4j import AsyncGraphDatabase
 from app.config import settings
 from typing import Optional
 import logging
@@ -15,6 +14,7 @@ class Neo4jClient:
             logger.warning("NEO4J_URI not set — graph features disabled")
             return
         try:
+            from neo4j import AsyncGraphDatabase
             self._driver = AsyncGraphDatabase.driver(
                 settings.NEO4J_URI,
                 auth=(settings.NEO4J_USERNAME, settings.NEO4J_PASSWORD),

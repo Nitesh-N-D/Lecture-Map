@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import useStore from '../../store/useStore'
 import { api } from '../../api/client'
 import AuthModal from './AuthModal'
+import Button from './Button'
 import toast from 'react-hot-toast'
 
 export default function Navbar() {
@@ -51,15 +52,17 @@ export default function Navbar() {
       )}
 
       {isAuthenticated && (
-        <button
+        <Button
+          variant="outline"
+          size="sm"
           onClick={() => setCommandPaletteOpen(true)}
-          className="hidden md:flex items-center gap-2 text-sm text-tertiary surface-border border rounded-lg px-3 py-1.5 hover:border-slate-300 transition-colors ml-2"
+          className="hidden md:flex gap-2 ml-2 text-tertiary"
         >
           <span>Search</span>
           <kbd className="ml-2 text-[10px] font-mono surface-bg border surface-border rounded px-1.5 py-0.5">
             {isMac ? 'Cmd K' : 'Ctrl K'}
           </kbd>
-        </button>
+        </Button>
       )}
 
       <div className="ml-auto flex items-center gap-2 sm:gap-3">
@@ -71,33 +74,37 @@ export default function Navbar() {
                 <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">guest</span>
               )}
             </span>
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={handleLogout}
-              className="text-sm text-secondary hover:text-primary transition-colors"
             >
               Sign out
-            </button>
+            </Button>
           </>
         ) : (
           <>
-            <button
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={handleGuestLogin}
-              className="hidden sm:inline text-sm text-secondary hover:text-primary"
+              className="hidden sm:inline-flex"
             >
               Try as guest
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setAuthModal('login')}
-              className="text-sm text-secondary hover:text-primary transition-colors"
             >
               Sign in
-            </button>
-            <button
+            </Button>
+            <Button
+              size="sm"
               onClick={() => setAuthModal('signup')}
-              className="bg-brand-600 text-white text-sm px-3 py-1.5 rounded-md hover:bg-brand-700 transition-colors"
             >
               Sign up
-            </button>
+            </Button>
           </>
         )}
       </div>

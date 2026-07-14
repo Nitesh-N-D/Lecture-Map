@@ -4,7 +4,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from authlib.integrations.starlette_client import OAuth
+try:
+    from authlib.integrations.starlette_client import OAuth
+except Exception:
+    OAuth = None
 
 from app.database import get_db
 from app.models.user import User, UserRole
@@ -16,8 +19,8 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 # ── OAuth Setup ─────────────────────────────────────────────────────────────
-oauth = OAuth()
-if settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET:
+oauth = OAuth() if OAuth else None
+if oauth and settings.GOOGLE_CLIENT_ID and settings.GOOGLE_CLIENT_SECRET:
     oauth.register(
         name="google",
         client_id=settings.GOOGLE_CLIENT_ID,
@@ -105,6 +108,8 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
 
 @router.get("/google")
 async def google_login(request: Request):
+    if oauth is None:
+        raise HTTPException(501, "Google OAuth dependencies are not installed")
     if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
         raise HTTPException(501, "Google OAuth not configured")
     if settings.ENVIRONMENT == "production":
@@ -116,6 +121,8 @@ async def google_login(request: Request):
 
 @router.get("/google/callback")
 async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
+    if oauth is None:
+        raise HTTPException(501, "Google OAuth dependencies are not installed")
     try:
         token = await oauth.google.authorize_access_token(request)
     except Exception as e:

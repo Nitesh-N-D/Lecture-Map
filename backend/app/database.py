@@ -4,15 +4,29 @@ from app.config import settings
 import logging
 
 logger = logging.getLogger(__name__)
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    echo=settings.ENVIRONMENT == "development",
-    pool_pre_ping=True,
-    pool_recycle=300,
-    pool_size=1,
-    max_overflow=0,
-    connect_args={"statement_cache_size": 0},
-)
+
+
+def _engine_kwargs(database_url: str) -> dict:
+    kwargs = {
+        "echo": settings.ENVIRONMENT == "development",
+        "pool_pre_ping": True,
+    }
+
+    if database_url.startswith("sqlite"):
+        return kwargs
+
+    kwargs.update(
+        {
+            "pool_recycle": 300,
+            "pool_size": 1,
+            "max_overflow": 0,
+            "connect_args": {"statement_cache_size": 0},
+        }
+    )
+    return kwargs
+
+
+engine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs(settings.DATABASE_URL))
 
 AsyncSessionLocal = async_sessionmaker(
     engine,
@@ -39,6 +53,7 @@ async def get_db():
 async def init_db():
     """Create all tables on startup."""
     from app.models import user, lecture, flashcard, study_session  # noqa: F401
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     logger.info("Database tables created/verified")

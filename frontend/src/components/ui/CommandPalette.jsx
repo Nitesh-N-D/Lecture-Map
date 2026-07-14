@@ -119,7 +119,7 @@ export default function CommandPalette() {
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
             aria-label="Search lectures, concepts, or actions"
-            className="flex-1 bg-transparent outline-none text-sm text-primary placeholder:text-tertiary"
+            className="flex-1 bg-transparent outline-none text-sm text-primary"
           />
           <kbd className="text-[10px] font-mono text-tertiary border surface-border rounded px-1.5 py-0.5">esc</kbd>
         </div>
