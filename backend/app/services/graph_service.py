@@ -5,6 +5,32 @@ from app.neo4j_client import neo4j_client
 logger = logging.getLogger(__name__)
 
 
+def scope_concept_id(lecture_id: str, concept_id: str) -> str:
+    concept_id = str(concept_id or "").strip()
+    if concept_id.startswith(f"{lecture_id}:"):
+        return concept_id
+    return f"{lecture_id}:{concept_id}"
+
+
+def scope_graph_data(lecture_id: str, graph_data: dict) -> dict:
+    id_map = {}
+    scoped_concepts = []
+    for concept in graph_data.get("concepts", []):
+        original_id = concept.get("id")
+        scoped_id = scope_concept_id(lecture_id, original_id)
+        id_map[original_id] = scoped_id
+        scoped_concepts.append({**concept, "id": scoped_id})
+
+    scoped_edges = []
+    for edge in graph_data.get("edges", []):
+        from_id = id_map.get(edge.get("from"))
+        to_id = id_map.get(edge.get("to"))
+        if from_id and to_id:
+            scoped_edges.append({**edge, "from": from_id, "to": to_id})
+
+    return {"concepts": scoped_concepts, "edges": scoped_edges}
+
+
 async def store_graph(lecture_id: str, graph_data: dict) -> tuple[int, int]:
     """Store concepts and edges in Neo4j. Returns (node_count, edge_count)."""
     concepts = graph_data.get("concepts", [])

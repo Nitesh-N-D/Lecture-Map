@@ -11,13 +11,23 @@ const STEPS = [
   { step: 5, label: 'Generating flashcards' },
 ]
 
-export default function ProcessingStatus({ lectureId, onComplete }) {
+export default function ProcessingStatus({ lectureId, onComplete, onStatusChange }) {
   const [status, setStatus] = useState(null)
   const [elapsed, setElapsed] = useState(0)
   const [pollError, setPollError] = useState('')
   const intervalRef = useRef(null)
   const elapsedRef = useRef(null)
+  const onCompleteRef = useRef(onComplete)
+  const onStatusChangeRef = useRef(onStatusChange)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete
+  }, [onComplete])
+
+  useEffect(() => {
+    onStatusChangeRef.current = onStatusChange
+  }, [onStatusChange])
 
   useEffect(() => {
     if (!lectureId) return
@@ -26,13 +36,14 @@ export default function ProcessingStatus({ lectureId, onComplete }) {
       try {
         const { data } = await api.getLectureStatus(lectureId)
         setStatus(data)
+        onStatusChangeRef.current?.(data)
         setPollError('')
 
         if (data.status === 'COMPLETED') {
           clearInterval(intervalRef.current)
           clearInterval(elapsedRef.current)
           toast.success('Knowledge graph ready')
-          onComplete?.()
+          onCompleteRef.current?.()
           setTimeout(() => navigate(`/lectures/${lectureId}`), 800)
         } else if (data.status === 'FAILED') {
           clearInterval(intervalRef.current)
@@ -40,6 +51,18 @@ export default function ProcessingStatus({ lectureId, onComplete }) {
           toast.error(data.error_message || 'Processing failed')
         }
       } catch (e) {
+        if (e.response?.status === 404) {
+          clearInterval(intervalRef.current)
+          clearInterval(elapsedRef.current)
+          setStatus({
+            status: 'FAILED',
+            progress_step: status?.progress_step || 0,
+            progress_percent: status?.progress_percent || 0,
+            error_message: 'This lecture is no longer available for the current session. Please sign in again or upload it once more.',
+          })
+          toast.error('Lecture is no longer available')
+          return
+        }
         setPollError(e.response?.data?.detail || 'Could not refresh status. Retrying...')
       }
     }
@@ -52,7 +75,7 @@ export default function ProcessingStatus({ lectureId, onComplete }) {
       clearInterval(intervalRef.current)
       clearInterval(elapsedRef.current)
     }
-  }, [lectureId, navigate, onComplete])
+  }, [lectureId, navigate])
 
   const currentStep = status?.progress_step || 0
   const percent = status?.progress_percent || 0

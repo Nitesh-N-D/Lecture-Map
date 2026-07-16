@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useSearchParams } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import Navbar from './components/ui/Navbar'
@@ -16,6 +16,7 @@ import useStore from './store/useStore'
 function AuthCallback() {
   const [params] = useSearchParams()
   const { setAuth } = useStore()
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
     const token = params.get('token')
@@ -27,13 +28,19 @@ function AuthCallback() {
             headers: { Authorization: `Bearer ${token}` },
           })
           const user = await res.json()
-          setAuth(user, token)
-        } catch {}
+          if (res.ok) setAuth(user, token)
+        } catch {
+        } finally {
+          setReady(true)
+        }
       }
       fetchUser()
+    } else {
+      setReady(true)
     }
   }, [])
 
+  if (!ready) return null
   return <Navigate to="/dashboard" replace />
 }
 

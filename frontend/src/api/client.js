@@ -58,8 +58,10 @@ export const api = {
   // Graph
   getGraph: (lectureId) => client.get(`/lectures/${lectureId}/graph`),
   getGaps: (lectureId) => client.get(`/lectures/${lectureId}/graph/gaps`),
-  getConcept: (conceptId) => client.get(`/concepts/${conceptId}`),
-  markVisited: (conceptId) => client.post(`/concepts/${conceptId}/visit`),
+  getConcept: (conceptId, lectureId) =>
+    client.get(`/concepts/${conceptId}`, { params: { lecture_id: lectureId } }),
+  markVisited: (conceptId, lectureId) =>
+    client.post(`/concepts/${conceptId}/visit`, null, { params: { lecture_id: lectureId } }),
   getStudyPath: (lectureId, targetConceptId) =>
     client.get(`/lectures/${lectureId}/study-path`, {
       params: { target: targetConceptId },

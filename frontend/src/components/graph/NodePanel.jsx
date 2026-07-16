@@ -27,7 +27,7 @@ export default function NodePanel({ node, onClose, lectureId }) {
     const load = async () => {
       setLoading(true)
       try {
-        const { data } = await api.getConcept(node.concept_id)
+        const { data } = await api.getConcept(node.concept_id, lectureId)
         setDetail(data)
       } catch (e) {
         // Non-critical
@@ -36,7 +36,7 @@ export default function NodePanel({ node, onClose, lectureId }) {
       }
     }
     load()
-  }, [node?.concept_id])
+  }, [node?.concept_id, lectureId])
 
   // Close on Escape for keyboard-friendly navigation
   useEffect(() => {
@@ -48,7 +48,7 @@ export default function NodePanel({ node, onClose, lectureId }) {
   const handleMarkStudied = async () => {
     if (!node) return
     try {
-      await api.markVisited(node.concept_id)
+      await api.markVisited(node.concept_id, lectureId)
       markNodeVisited(node.concept_id)
       toast.success(`"${node.name}" marked as studied`)
     } catch {

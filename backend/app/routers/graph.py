@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -12,6 +12,30 @@ from app.services.graph_service import get_graph_with_stats
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["graph"])
+
+
+async def _verify_concept_owner(
+    concept_id: str,
+    current_user: User,
+    db: AsyncSession,
+    lecture_id: str | None = None,
+) -> str:
+    actual_lecture_id = await neo4j_client.get_concept_lecture_id(concept_id)
+    if lecture_id and actual_lecture_id and actual_lecture_id != lecture_id:
+        raise HTTPException(404, "Concept not found")
+    concept_lecture_id = actual_lecture_id or lecture_id
+    if not concept_lecture_id:
+        raise HTTPException(404, "Concept not found")
+
+    result = await db.execute(
+        select(Lecture).where(
+            Lecture.id == concept_lecture_id,
+            Lecture.user_id == current_user.id,
+        )
+    )
+    if not result.scalar_one_or_none():
+        raise HTTPException(404, "Concept not found")
+    return concept_lecture_id
 
 
 @router.get("/lectures/{lecture_id}/graph")
@@ -59,7 +83,10 @@ async def get_graph_gaps(
 async def get_concept(
     concept_id: str,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    lecture_id: str | None = Query(None),
 ):
+    await _verify_concept_owner(concept_id, current_user, db, lecture_id)
     prereqs = await neo4j_client.get_prerequisites(concept_id)
     dependents = await neo4j_client.get_dependents(concept_id)
     is_visited = await neo4j_client.is_concept_visited(concept_id, current_user.id)
@@ -76,7 +103,10 @@ async def get_concept(
 async def mark_visited(
     concept_id: str,
     current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    lecture_id: str | None = Query(None),
 ):
+    await _verify_concept_owner(concept_id, current_user, db, lecture_id)
     success = await neo4j_client.mark_visited(concept_id, current_user.id)
     return {"success": success, "concept_id": concept_id}
 

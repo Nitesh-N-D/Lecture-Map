@@ -39,11 +39,14 @@ def _queue_processing(lecture_id: str, background_tasks: BackgroundTasks) -> str
         background_tasks.add_task(process_lecture_direct, lecture_id)
         return task_id
     try:
+        inspector = process_lecture.app.control.inspect(timeout=1.0)
+        if not inspector.ping():
+            raise RuntimeError("No Celery worker responded to ping")
         task = process_lecture.delay(lecture_id)
         return task.id
     except Exception as e:
         task_id = f"local-{uuid.uuid4()}"
-        logger.warning("Celery enqueue failed; using FastAPI background task %s: %s", task_id, e)
+        logger.warning("Celery unavailable; using FastAPI background task %s: %s", task_id, e)
         background_tasks.add_task(process_lecture_direct, lecture_id)
         return task_id
 
@@ -190,11 +193,22 @@ async def get_lecture_status(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(
-        select(Lecture).where(Lecture.id == lecture_id, Lecture.user_id == current_user.id)
-    )
+    result = await db.execute(select(Lecture).where(Lecture.id == lecture_id))
     lecture = result.scalar_one_or_none()
     if not lecture:
+        logger.warning(
+            "Lecture status lookup failed: lecture_id=%s does not exist for user_id=%s",
+            lecture_id,
+            current_user.id,
+        )
+        raise HTTPException(404, "Lecture not found")
+    if lecture.user_id != current_user.id:
+        logger.warning(
+            "Lecture status lookup failed: lecture_id=%s belongs_to=%s requested_by=%s",
+            lecture_id,
+            lecture.user_id,
+            current_user.id,
+        )
         raise HTTPException(404, "Lecture not found")
 
     progress = PROGRESS_MAP.get(lecture.progress_step, 0)

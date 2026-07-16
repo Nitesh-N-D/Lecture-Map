@@ -24,6 +24,14 @@ def _run_async(coro):
         loop.close()
 
 
+def _sync_database_url(database_url: str) -> str:
+    return (
+        database_url
+        .replace("postgresql+asyncpg://", "postgresql://", 1)
+        .replace("sqlite+aiosqlite://", "sqlite://", 1)
+    )
+
+
 @celery_app.task(bind=True, max_retries=2, name="tasks.process_lecture")
 def process_lecture(self, lecture_id: str):
     """Celery entrypoint (used by local docker-compose, which runs a real
@@ -52,7 +60,7 @@ def _process_lecture_impl(lecture_id: str, celery_task=None):
     from app.config import settings
 
     # Use sync engine for Celery (asyncpg can't run in Celery easily)
-    sync_db_url = settings.DATABASE_URL.replace("+asyncpg", "")
+    sync_db_url = _sync_database_url(settings.DATABASE_URL)
     engine = create_engine(sync_db_url, pool_pre_ping=True)
     SessionLocal = sessionmaker(bind=engine)
     db = SessionLocal()
@@ -117,6 +125,8 @@ def _process_lecture_impl(lecture_id: str, celery_task=None):
             graph_data = _run_async(
                 extract_concepts_and_edges(transcript, lecture_id)
             )
+            from app.services.graph_service import scope_graph_data
+            graph_data = scope_graph_data(lecture_id, graph_data)
             concepts = graph_data.get("concepts", [])
             edges = graph_data.get("edges", [])
 

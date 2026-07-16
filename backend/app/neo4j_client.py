@@ -14,12 +14,18 @@ class Neo4jClient:
         if not settings.NEO4J_URI:
             logger.warning("NEO4J_URI not set — graph features disabled")
             return
-        self._driver = AsyncGraphDatabase.driver(
-            settings.NEO4J_URI,
-            auth=(settings.NEO4J_USERNAME, settings.NEO4J_PASSWORD),
-        )
-        await self._driver.verify_connectivity()
-        logger.info("Neo4j connected")
+        try:
+            self._driver = AsyncGraphDatabase.driver(
+                settings.NEO4J_URI,
+                auth=(settings.NEO4J_USERNAME, settings.NEO4J_PASSWORD),
+            )
+            await self._driver.verify_connectivity()
+            logger.info("Neo4j connected")
+        except Exception as e:
+            logger.warning("Neo4j unavailable; graph features disabled: %s", e)
+            if self._driver:
+                await self._driver.close()
+            self._driver = None
 
     async def close(self):
         if self._driver:
@@ -138,6 +144,21 @@ class Neo4jClient:
             async for record in result:
                 prereqs.append(dict(record["pre"]))
         return prereqs
+
+    async def get_concept_lecture_id(self, concept_id: str) -> Optional[str]:
+        if not self._driver:
+            return None
+        async with self._driver.session() as session:
+            result = await session.run(
+                """
+                MATCH (c:Concept {concept_id: $concept_id})
+                RETURN c.lecture_id AS lecture_id
+                LIMIT 1
+                """,
+                concept_id=concept_id,
+            )
+            record = await result.single()
+            return record["lecture_id"] if record else None
 
     async def get_dependents(self, concept_id: str) -> list:
         if not self._driver:

@@ -29,6 +29,24 @@ export default function Dashboard() {
     loadStats()
   }, [])
 
+  useEffect(() => {
+    if (processingId) return
+    const activeLecture = lectures.find((lecture) =>
+      lecture.status === 'PENDING' || lecture.status === 'PROCESSING'
+    )
+    if (activeLecture) {
+      setProcessingId(activeLecture.id)
+    }
+  }, [lectures, processingId])
+
+  useEffect(() => {
+    if (!processingId) return
+    document.getElementById('lecture-processing-status')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'center',
+    })
+  }, [processingId])
+
   const loadLectures = async () => {
     try {
       setLoadError('')
@@ -120,9 +138,14 @@ export default function Dashboard() {
       )}
 
       {processingId && (
-        <div className="mb-8 flex justify-center">
+        <div id="lecture-processing-status" className="mb-8 flex justify-center">
           <ProcessingStatus
             lectureId={processingId}
+            onStatusChange={(status) => {
+              if (status.status === 'PROCESSING' || status.status === 'FAILED') {
+                loadLectures()
+              }
+            }}
             onComplete={() => {
               loadLectures()
               setProcessingId(null)
