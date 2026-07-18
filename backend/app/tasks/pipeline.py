@@ -2,6 +2,7 @@ import os
 import tempfile
 import logging
 import asyncio
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import app.models
 from app.celery_app import celery_app
 
@@ -25,11 +26,51 @@ def _run_async(coro):
 
 
 def _sync_database_url(database_url: str) -> str:
-    return (
+    sync_url = (
         database_url
         .replace("postgresql+asyncpg://", "postgresql://", 1)
         .replace("sqlite+aiosqlite://", "sqlite://", 1)
     )
+    if sync_url.startswith("postgresql://"):
+        parts = urlsplit(sync_url)
+        query = dict(parse_qsl(parts.query, keep_blank_values=True))
+        if query.get("ssl") == "require" and "sslmode" not in query:
+            query["sslmode"] = "require"
+            query.pop("ssl", None)
+            sync_url = urlunsplit((
+                parts.scheme,
+                parts.netloc,
+                parts.path,
+                urlencode(query),
+                parts.fragment,
+            ))
+    return sync_url
+
+
+def _mark_lecture_failed(lecture_id: str, error: Exception) -> bool:
+    try:
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from app.config import settings
+        from app.models.lecture import Lecture, LectureStatus
+
+        engine = create_engine(_sync_database_url(settings.DATABASE_URL), pool_pre_ping=True)
+        SessionLocal = sessionmaker(bind=engine)
+        db = SessionLocal()
+        try:
+            lecture = db.query(Lecture).filter(Lecture.id == lecture_id).first()
+            if not lecture:
+                return False
+            lecture.status = LectureStatus.FAILED
+            lecture.error_message = str(error)
+            db.commit()
+            return True
+        finally:
+            db.close()
+            engine.dispose()
+    except Exception:
+        logger.exception("Could not mark lecture %s as FAILED", lecture_id)
+        return False
 
 
 @celery_app.task(bind=True, max_retries=2, name="tasks.process_lecture")
@@ -43,7 +84,11 @@ def process_lecture_direct(lecture_id: str):
     """Plain-function entrypoint for environments with no Celery worker
     (e.g. Render's free plan, which has no free background-worker tier).
     Called via FastAPI BackgroundTasks instead of celery .delay()."""
-    _process_lecture_impl(lecture_id, celery_task=None)
+    try:
+        _process_lecture_impl(lecture_id, celery_task=None)
+    except Exception as e:
+        _mark_lecture_failed(lecture_id, e)
+        logger.exception("Direct lecture processing failed for %s", lecture_id)
 
 
 def _process_lecture_impl(lecture_id: str, celery_task=None):
@@ -199,3 +244,4 @@ def _process_lecture_impl(lecture_id: str, celery_task=None):
         raise
     finally:
         db.close()
+        engine.dispose()
