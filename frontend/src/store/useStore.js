@@ -15,7 +15,19 @@ const useStore = create(
         set({ user, token, isAuthenticated: true }),
 
       logout: () =>
-        set({ user: null, token: null, isAuthenticated: false }),
+        set({
+          user: null,
+          token: null,
+          isAuthenticated: false,
+          lectures: [],
+          currentLecture: null,
+          graphData: null,
+          selectedNode: null,
+          visitedNodes: new Set(),
+          gapNodes: new Set(),
+          dueCards: [],
+          reviewStats: null,
+        }),
 
       lectures: [],
       currentLecture: null,

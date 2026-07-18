@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import logging
 import tempfile
 from pathlib import Path
@@ -19,22 +20,53 @@ def is_youtube_url(url: str) -> bool:
 async def download_youtube_audio(url: str, output_dir: str) -> str:
     """Download YouTube audio using yt-dlp, return path to mp3 file."""
     import subprocess
+    from app.config import settings
 
     output_template = os.path.join(output_dir, "%(id)s.%(ext)s")
+    cookies_path = settings.YTDLP_COOKIES_FILE.strip() or None
+    cleanup_cookies = False
+
+    if settings.YTDLP_COOKIES_CONTENT.strip() and not cookies_path:
+        fd, cookies_path = tempfile.mkstemp(prefix="lecturemap-ytdlp-", suffix=".cookies.txt")
+        with os.fdopen(fd, "w", encoding="utf-8") as cookie_file:
+            cookie_file.write(settings.YTDLP_COOKIES_CONTENT.strip() + "\n")
+        cleanup_cookies = True
+
     cmd = [
-        "yt-dlp",
+        sys.executable,
+        "-m", "yt_dlp",
         "-x",
         "--audio-format", "mp3",
         "--audio-quality", "0",
+        "--no-cache-dir",
+        "--force-ipv4",
+        "--extractor-args", "youtube:player_client=default,ios",
         "-o", output_template,
         "--no-playlist",
         url,
     ]
+    if cookies_path:
+        cmd[3:3] = ["--cookies", cookies_path]
+
     logger.info(f"Downloading YouTube audio: {url}")
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    finally:
+        if cleanup_cookies and cookies_path:
+            try:
+                os.remove(cookies_path)
+            except OSError:
+                pass
 
     if result.returncode != 0:
-        raise RuntimeError(f"yt-dlp failed: {result.stderr}")
+        stderr = result.stderr.strip()
+        if "Sign in to confirm" in stderr or "not a bot" in stderr:
+            raise RuntimeError(
+                "YouTube blocked this hosted server with an anti-bot check. "
+                "Upload the audio/video file directly, or configure YTDLP_COOKIES_CONTENT "
+                "or YTDLP_COOKIES_FILE on the backend and retry."
+            )
+        raise RuntimeError(f"yt-dlp failed: {stderr[-1200:]}")
 
     # Find the downloaded file
     mp3_files = list(Path(output_dir).glob("*.mp3"))

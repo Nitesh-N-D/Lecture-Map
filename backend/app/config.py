@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     
     # AI
     GEMINI_API_KEY: str = ""
+
+    # YouTube download fallback for hosted environments where YouTube
+    # asks datacenter traffic to prove it is not automated.
+    YTDLP_COOKIES_FILE: str = ""
+    YTDLP_COOKIES_CONTENT: str = ""
     
     # Auth
     GOOGLE_CLIENT_ID: str = ""

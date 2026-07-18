@@ -1,6 +1,7 @@
 import uuid
 import logging
 import os
+import shutil
 import tempfile
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, Body, Query
@@ -22,6 +23,7 @@ router = APIRouter(prefix="/lectures", tags=["lectures"])
 
 PROGRESS_MAP = {0: 0, 1: 10, 2: 30, 3: 60, 4: 80, 5: 100}
 LOCAL_UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "lecturemap_uploads")
+MAX_UPLOAD_SIZE = 200 * 1024 * 1024
 
 
 class YouTubeLectureRequest(BaseModel):
@@ -68,26 +70,41 @@ async def upload_lecture(
 
     lecture_id = str(uuid.uuid4())
     storage_path = f"{current_user.id}/{lecture_id}{suffix}"
+    content_type = file.content_type or "application/octet-stream"
+    temp_upload_path = None
 
-    # Read file content once
-    content = await file.read()
-
-    # Upload to Supabase Storage
     try:
-        from supabase import create_client
-        client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-        client.storage.from_(settings.SUPABASE_BUCKET).upload(
-            path=storage_path,
-            file=content,
-            file_options={"content-type": file.content_type or "audio/mpeg"},
-        )
-    except Exception as e:
-        logger.error(f"Supabase upload failed: {e}")
-        os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
-        tmppath = os.path.join(LOCAL_UPLOAD_DIR, f"{lecture_id}{suffix}")
-        with open(tmppath, "wb") as f_out:
-            f_out.write(content)
-        storage_path = tmppath
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+            temp_upload_path = tmp.name
+            total_size = 0
+            while chunk := await file.read(1024 * 1024):
+                total_size += len(chunk)
+                if total_size > MAX_UPLOAD_SIZE:
+                    raise HTTPException(413, "File too large. Maximum size is 200MB.")
+                tmp.write(chunk)
+
+        # Upload to Supabase Storage
+        try:
+            from supabase import create_client
+            client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+            with open(temp_upload_path, "rb") as f_in:
+                client.storage.from_(settings.SUPABASE_BUCKET).upload(
+                    path=storage_path,
+                    file=f_in,
+                    file_options={"content-type": content_type},
+                )
+        except Exception as e:
+            logger.error(f"Supabase upload failed: {e}")
+            os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
+            tmppath = os.path.join(LOCAL_UPLOAD_DIR, f"{lecture_id}{suffix}")
+            shutil.copyfile(temp_upload_path, tmppath)
+            storage_path = tmppath
+    finally:
+        if temp_upload_path:
+            try:
+                os.remove(temp_upload_path)
+            except OSError:
+                pass
 
     lecture = Lecture(
         id=lecture_id,
