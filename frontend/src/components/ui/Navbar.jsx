@@ -22,9 +22,17 @@ export default function Navbar() {
     }
   }
 
-  const handleLogout = () => {
-    logout()
-    navigate('/')
+  const handleLogout = async () => {
+    try {
+      await api.logout()
+    } catch (error) {
+      if (error.response?.status !== 401) {
+        toast.error('Signed out locally. The server could not end this session.')
+      }
+    } finally {
+      logout()
+      navigate('/')
+    }
   }
 
   const isActive = (path) => location.pathname === path

@@ -42,7 +42,6 @@ def upgrade() -> None:
         sa.Column('title', sa.String(), nullable=True),
         sa.Column('original_filename', sa.String(), nullable=True),
         sa.Column('storage_path', sa.String(), nullable=True),
-        sa.Column('youtube_url', sa.String(), nullable=True),
         sa.Column('transcript', sa.Text(), nullable=True),
         sa.Column('status', sa.Enum('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED', name='lecturestatus'), nullable=False, server_default='PENDING'),
         sa.Column('celery_task_id', sa.String(), nullable=True),

@@ -21,7 +21,6 @@ class Lecture(Base):
     title = Column(String, nullable=True)
     original_filename = Column(String, nullable=True)
     storage_path = Column(String, nullable=True)
-    youtube_url = Column(String, nullable=True)
     transcript = Column(Text, nullable=True)
     status = Column(SAEnum(LectureStatus), default=LectureStatus.PENDING, nullable=False)
     celery_task_id = Column(String, nullable=True)

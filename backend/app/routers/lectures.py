@@ -4,8 +4,7 @@ import os
 import shutil
 import tempfile
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks, Body, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
 
@@ -16,7 +15,6 @@ from app.auth import get_current_user
 from app.schemas.lecture import LectureResponse, LectureStatusResponse, UploadResponse
 from app.config import settings
 from app.tasks.pipeline import process_lecture, process_lecture_direct
-from app.services.transcription import is_youtube_url
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/lectures", tags=["lectures"])
@@ -24,11 +22,6 @@ router = APIRouter(prefix="/lectures", tags=["lectures"])
 PROGRESS_MAP = {0: 0, 1: 10, 2: 30, 3: 60, 4: 80, 5: 100}
 LOCAL_UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "lecturemap_uploads")
 MAX_UPLOAD_SIZE = 200 * 1024 * 1024
-
-
-class YouTubeLectureRequest(BaseModel):
-    url: str
-    title: str | None = None
 
 
 def _queue_processing(lecture_id: str, background_tasks: BackgroundTasks) -> str:
@@ -63,7 +56,7 @@ async def upload_lecture(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    allowed = {".mp3", ".mp4", ".wav", ".m4a", ".webm", ".ogg"}
+    allowed = {".mp3", ".mp4", ".wav", ".m4a", ".webm", ".ogg", ".pdf"}
     suffix = "." + file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
     if suffix not in allowed:
         raise HTTPException(400, f"File type '{suffix}' not supported. Allowed: {', '.join(allowed)}")
@@ -83,22 +76,27 @@ async def upload_lecture(
                     raise HTTPException(413, "File too large. Maximum size is 200MB.")
                 tmp.write(chunk)
 
-        # Upload to Supabase Storage
-        try:
-            from supabase import create_client
-            client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-            with open(temp_upload_path, "rb") as f_in:
-                client.storage.from_(settings.SUPABASE_BUCKET).upload(
-                    path=storage_path,
-                    file=f_in,
-                    file_options={"content-type": content_type},
-                )
-        except Exception as e:
-            logger.error(f"Supabase upload failed: {e}")
+        if settings.SUPABASE_URL and settings.SUPABASE_KEY:
+            try:
+                from supabase import create_client
+                client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+                with open(temp_upload_path, "rb") as f_in:
+                    client.storage.from_(settings.SUPABASE_BUCKET).upload(
+                        path=storage_path,
+                        file=f_in,
+                        file_options={"content-type": content_type},
+                    )
+            except Exception as error:
+                logger.warning("Supabase upload failed; using local storage: %s", error)
+                os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
+                local_path = os.path.join(LOCAL_UPLOAD_DIR, f"{lecture_id}{suffix}")
+                shutil.copyfile(temp_upload_path, local_path)
+                storage_path = local_path
+        else:
             os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
-            tmppath = os.path.join(LOCAL_UPLOAD_DIR, f"{lecture_id}{suffix}")
-            shutil.copyfile(temp_upload_path, tmppath)
-            storage_path = tmppath
+            local_path = os.path.join(LOCAL_UPLOAD_DIR, f"{lecture_id}{suffix}")
+            shutil.copyfile(temp_upload_path, local_path)
+            storage_path = local_path
     finally:
         if temp_upload_path:
             try:
@@ -126,47 +124,6 @@ async def upload_lecture(
         lecture_id=lecture_id,
         task_id=task_id,
         message="Upload successful. Processing started.",
-    )
-
-
-# ── YouTube URL ───────────────────────────────────────────────────────────────
-
-@router.post("/youtube", response_model=UploadResponse)
-async def add_youtube_lecture(
-    background_tasks: BackgroundTasks,
-    payload: YouTubeLectureRequest | None = Body(None),
-    url: str | None = Query(None),
-    title: str | None = Query(None),
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-):
-    url = (payload.url if payload else url) or ""
-    title = (payload.title if payload and payload.title else title)
-    url = url.strip()
-
-    if not is_youtube_url(url):
-        raise HTTPException(400, "Invalid YouTube URL")
-
-    lecture_id = str(uuid.uuid4())
-    lecture = Lecture(
-        id=lecture_id,
-        user_id=current_user.id,
-        title=title or f"YouTube: {url[:50]}",
-        youtube_url=url,
-        status=LectureStatus.PENDING,
-    )
-    db.add(lecture)
-    await db.commit()
-    await db.refresh(lecture)
-
-    task_id = _queue_processing(lecture_id, background_tasks)
-    lecture.celery_task_id = task_id
-    await db.commit()
-
-    return UploadResponse(
-        lecture_id=lecture_id,
-        task_id=task_id,
-        message="YouTube lecture queued for processing.",
     )
 
 

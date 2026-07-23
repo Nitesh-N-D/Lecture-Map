@@ -3,13 +3,10 @@ import { api } from '../../api/client'
 import Button from '../ui/Button'
 import toast from 'react-hot-toast'
 
-const YOUTUBE_RE = /^(https?:\/\/)?(www\.)?(m\.)?(youtube\.com\/(watch\?.*v=|shorts\/|embed\/)|youtu\.be\/)[\w-]+/i
-const ALLOWED_EXTENSIONS = ['mp3', 'mp4', 'wav', 'm4a', 'webm', 'ogg']
+const ALLOWED_EXTENSIONS = ['mp3', 'mp4', 'wav', 'm4a', 'webm', 'ogg', 'pdf']
 const MAX_FILE_SIZE = 200 * 1024 * 1024
 
 export default function UploadZone({ onSubmit }) {
-  const [mode, setMode] = useState('file')
-  const [youtubeUrl, setYoutubeUrl] = useState('')
   const [dragging, setDragging] = useState(false)
   const [file, setFile] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -20,69 +17,37 @@ export default function UploadZone({ onSubmit }) {
       setFile(null)
       return
     }
-
     const extension = nextFile.name.split('.').pop()?.toLowerCase()
     if (!ALLOWED_EXTENSIONS.includes(extension)) {
       toast.error(`Unsupported file type. Use ${ALLOWED_EXTENSIONS.join(', ')}.`)
       setFile(null)
       return
     }
-
     if (nextFile.size > MAX_FILE_SIZE) {
       toast.error('File too large. Maximum size is 200MB.')
       setFile(null)
       return
     }
-
     setFile(nextFile)
   }, [])
 
-  const handleDrop = useCallback((e) => {
-    e.preventDefault()
-    setDragging(false)
-    setSelectedFile(e.dataTransfer.files[0] || null)
-  }, [setSelectedFile])
-
-  const handleDragOver = useCallback((e) => {
-    e.preventDefault()
-    setDragging(true)
-  }, [])
-
-  const handleFileChange = (e) => {
-    setSelectedFile(e.target.files[0] || null)
-  }
-
   const handleSubmit = async () => {
+    if (!file) {
+      toast.error('Choose a file before continuing.')
+      return
+    }
     setLoading(true)
     try {
-      if (mode === 'youtube') {
-        const trimmedUrl = youtubeUrl.trim()
-        if (!YOUTUBE_RE.test(trimmedUrl)) {
-          toast.error('Please enter a valid YouTube URL')
-          return
-        }
-
-        const { data } = await api.addYouTubeLecture(trimmedUrl)
-        onSubmit?.(data.lecture_id)
-        toast.success('YouTube lecture queued')
-        setYoutubeUrl('')
-      } else {
-        if (!file) {
-          toast.error('Please select a file')
-          return
-        }
-
-        const form = new FormData()
-        form.append('file', file)
-        form.append('title', file.name.replace(/\.[^/.]+$/, ''))
-        const { data } = await api.uploadLecture(form)
-        onSubmit?.(data.lecture_id)
-        toast.success('Upload started')
-        setFile(null)
-        if (inputRef.current) inputRef.current.value = ''
-      }
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Upload failed')
+      const form = new FormData()
+      form.append('file', file)
+      form.append('title', file.name.replace(/\.[^/.]+$/, ''))
+      const { data } = await api.uploadLecture(form)
+      onSubmit?.(data.lecture_id)
+      toast.success('Upload started')
+      setFile(null)
+      if (inputRef.current) inputRef.current.value = ''
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Upload failed')
     } finally {
       setLoading(false)
     }
@@ -91,92 +56,54 @@ export default function UploadZone({ onSubmit }) {
   const uploadState = dragging
     ? 'border-brand-400 bg-brand-50'
     : file
-      ? 'border-green-300 bg-green-50'
+      ? 'border-emerald-300 bg-emerald-50'
       : 'surface-border hover:border-brand-300 hover:bg-slate-50'
 
   return (
-    <div className="surface-card rounded-xl border surface-border p-6 w-full max-w-xl transition-colors shadow-sm">
-      <h2 className="text-lg font-semibold text-primary mb-1">Add a lecture</h2>
-      <p className="text-sm text-secondary mb-5">
-        Upload audio or paste a YouTube link to start building your graph.
+    <section className="surface-card rounded-xl border surface-border p-6 w-full max-w-xl shadow-sm">
+      <h2 className="text-lg font-semibold text-primary">Add learning material</h2>
+      <p className="text-sm text-secondary mt-1 mb-5">
+        Upload an audio or video recording, or a PDF with selectable text.
       </p>
-
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-lg mb-5">
-        {['file', 'youtube'].map((m) => (
-          <Button
-            key={m}
-            variant={mode === m ? 'secondary' : 'ghost'}
-            size="sm"
-            onClick={() => setMode(m)}
-            className="flex-1"
-          >
-            {m === 'file' ? 'Audio/video file' : 'YouTube URL'}
-          </Button>
-        ))}
-      </div>
-
-      {mode === 'file' ? (
-        <div
-          onDrop={handleDrop}
-          onDragOver={handleDragOver}
-          onDragLeave={() => setDragging(false)}
-          onClick={() => inputRef.current?.click()}
-          className={`border-2 border-dashed rounded-xl p-10 flex flex-col items-center gap-3 cursor-pointer transition-all ${uploadState}`}
-        >
-          <span className="text-2xl font-semibold text-brand-600">{file ? 'OK' : '+'}</span>
-          {file ? (
-            <>
-              <p className="text-sm font-medium text-primary text-center">{file.name}</p>
-              <p className="text-xs text-tertiary">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
-            </>
-          ) : (
-            <>
-              <p className="text-sm font-medium text-secondary">Drop audio or video here</p>
-              <p className="text-xs text-tertiary text-center">
-                MP3, MP4, WAV, M4A, WEBM, OGG. Max 200MB.
-              </p>
-            </>
-          )}
-          <input
-            ref={inputRef}
-            type="file"
-            accept=".mp3,.mp4,.wav,.m4a,.webm,.ogg,audio/*,video/*"
-            onChange={handleFileChange}
-            className="hidden"
-          />
-        </div>
-      ) : (
-        <div className="flex flex-col gap-2">
-          <label className="text-xs font-medium text-secondary" htmlFor="youtube-url">
-            YouTube URL
-          </label>
-          <input
-            id="youtube-url"
-            type="url"
-            value={youtubeUrl}
-            onChange={(e) => setYoutubeUrl(e.target.value)}
-            className="w-full bg-white border surface-border rounded-lg px-3 py-2.5 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 transition-all text-primary"
-          />
-          {youtubeUrl && !YOUTUBE_RE.test(youtubeUrl.trim()) && (
-            <p className="text-xs text-red-500">Please enter a valid YouTube URL</p>
-          )}
-        </div>
-      )}
-
-      <Button
-        onClick={handleSubmit}
-        disabled={loading || (mode === 'file' ? !file : !youtubeUrl.trim())}
-        className="mt-5 w-full gap-2"
+      <div
+        onDrop={(event) => {
+          event.preventDefault()
+          setDragging(false)
+          setSelectedFile(event.dataTransfer.files[0] || null)
+        }}
+        onDragOver={(event) => {
+          event.preventDefault()
+          setDragging(true)
+        }}
+        onDragLeave={() => setDragging(false)}
+        onClick={() => inputRef.current?.click()}
+        className={`border-2 border-dashed rounded-xl p-9 flex flex-col items-center gap-3 cursor-pointer transition-colors ${uploadState}`}
       >
-        {loading ? (
+        <span className="grid h-9 w-9 place-items-center rounded-full bg-white border border-slate-200 text-lg font-semibold text-brand-600">
+          {file ? 'OK' : '+'}
+        </span>
+        {file ? (
           <>
-            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            Uploading...
+            <p className="text-sm font-medium text-primary text-center break-all">{file.name}</p>
+            <p className="text-xs text-tertiary">{(file.size / 1024 / 1024).toFixed(1)} MB</p>
           </>
         ) : (
-          'Build knowledge graph'
+          <>
+            <p className="text-sm font-medium text-secondary">Drop a file here, or choose one</p>
+            <p className="text-xs text-tertiary text-center">MP3, MP4, WAV, M4A, WEBM, OGG, or PDF. Maximum 200MB.</p>
+          </>
         )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept=".mp3,.mp4,.wav,.m4a,.webm,.ogg,.pdf,audio/*,video/*,application/pdf"
+          onChange={(event) => setSelectedFile(event.target.files[0] || null)}
+          className="hidden"
+        />
+      </div>
+      <Button onClick={handleSubmit} disabled={loading || !file} className="mt-5 w-full gap-2">
+        {loading ? 'Uploading...' : 'Build study materials'}
       </Button>
-    </div>
+    </section>
   )
 }

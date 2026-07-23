@@ -1,4 +1,4 @@
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime
 from app.models.lecture import LectureStatus
@@ -8,15 +8,10 @@ class LectureBase(BaseModel):
     title: Optional[str] = None
 
 
-class LectureCreate(LectureBase):
-    youtube_url: Optional[str] = None
-
-
 class LectureResponse(LectureBase):
     id: str
     user_id: str
     status: LectureStatus
-    youtube_url: Optional[str] = None
     original_filename: Optional[str] = None
     progress_step: int
     concept_count: int

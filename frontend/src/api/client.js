@@ -39,6 +39,7 @@ client.interceptors.response.use(
 export const api = {
   // Auth
   guestLogin: () => client.post('/auth/guest'),
+  logout: () => client.post('/auth/logout'),
   signup: (email, password, name) => client.post('/auth/signup', { email, password, name }),
   login: (email, password) => client.post('/auth/login', { email, password }),
   getMe: () => client.get('/auth/me'),
@@ -51,8 +52,6 @@ export const api = {
     client.post('/lectures/upload', formData, {
       timeout: 120000,
     }),
-  addYouTubeLecture: (url, title) =>
-    client.post('/lectures/youtube', { url, title }),
   deleteLecture: (id) => client.delete(`/lectures/${id}`),
 
   // Graph

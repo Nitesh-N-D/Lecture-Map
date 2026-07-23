@@ -1,7 +1,7 @@
 {
   "name": "LectureMap",
   "short_name": "LectureMap",
-  "description": "Transform lecture audio, video, and YouTube links into concept graphs, study paths, flashcards, and exports.",
+  "description": "Transform lecture audio, video, and PDFs into concept graphs, study paths, flashcards, and exports.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

@@ -4,7 +4,9 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://dev:dev@localhost:5432/lecturemap"
+    # SQLite makes the app runnable on a fresh local checkout. Set this to a
+    # Supabase/Postgres connection string for a deployed installation.
+    DATABASE_URL: str = "sqlite+aiosqlite:///./lecturemap.db"
     
     # Supabase
     SUPABASE_URL: str = ""
@@ -24,16 +26,11 @@ class Settings(BaseSettings):
     # PENDING forever). Leave True for local docker-compose, which runs a
     # real Celery worker + Redis. When False, lectures are processed
     # in-process via FastAPI BackgroundTasks on the web service instead.
-    USE_CELERY: bool = True
+    USE_CELERY: bool = False
     
     # AI
     GEMINI_API_KEY: str = ""
 
-    # YouTube download fallback for hosted environments where YouTube
-    # asks datacenter traffic to prove it is not automated.
-    YTDLP_COOKIES_FILE: str = ""
-    YTDLP_COOKIES_CONTENT: str = ""
-    
     # Auth
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""

@@ -1,146 +1,50 @@
-import os
-import re
-import sys
 import logging
-import tempfile
-from pathlib import Path
-from typing import List, Tuple, Optional
+import os
+from typing import List, Tuple
 
 logger = logging.getLogger(__name__)
 
 
-def is_youtube_url(url: str) -> bool:
-    youtube_pattern = re.compile(
-        r"^(https?://)?(www\.)?(m\.)?(youtube\.com/(watch\?.*v=|shorts/|embed/)|youtu\.be/)[\w-]+",
-        re.IGNORECASE,
-    )
-    return bool(youtube_pattern.match((url or "").strip()))
-
-
-async def download_youtube_audio(url: str, output_dir: str) -> str:
-    """Download YouTube audio using yt-dlp, return path to mp3 file."""
-    import subprocess
-    from app.config import settings
-
-    output_template = os.path.join(output_dir, "%(id)s.%(ext)s")
-    cookies_path = settings.YTDLP_COOKIES_FILE.strip() or None
-    cleanup_cookies = False
-
-    if settings.YTDLP_COOKIES_CONTENT.strip() and not cookies_path:
-        fd, cookies_path = tempfile.mkstemp(prefix="lecturemap-ytdlp-", suffix=".cookies.txt")
-        with os.fdopen(fd, "w", encoding="utf-8") as cookie_file:
-            cookie_file.write(settings.YTDLP_COOKIES_CONTENT.strip() + "\n")
-        cleanup_cookies = True
-
-    cmd = [
-        sys.executable,
-        "-m", "yt_dlp",
-        "-x",
-        "--audio-format", "mp3",
-        "--audio-quality", "0",
-        "--no-cache-dir",
-        "--force-ipv4",
-        "--extractor-args", "youtube:player_client=default,ios",
-        "-o", output_template,
-        "--no-playlist",
-        url,
-    ]
-    if cookies_path:
-        cmd[3:3] = ["--cookies", cookies_path]
-
-    logger.info(f"Downloading YouTube audio: {url}")
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
-    finally:
-        if cleanup_cookies and cookies_path:
-            try:
-                os.remove(cookies_path)
-            except OSError:
-                pass
-
-    if result.returncode != 0:
-        stderr = result.stderr.strip()
-        if "Sign in to confirm" in stderr or "not a bot" in stderr:
-            raise RuntimeError(
-                "YouTube blocked this hosted server with an anti-bot check. "
-                "Upload the audio/video file directly, or configure YTDLP_COOKIES_CONTENT "
-                "or YTDLP_COOKIES_FILE on the backend and retry."
-            )
-        raise RuntimeError(f"yt-dlp failed: {stderr[-1200:]}")
-
-    # Find the downloaded file
-    mp3_files = list(Path(output_dir).glob("*.mp3"))
-    if not mp3_files:
-        raise RuntimeError("yt-dlp downloaded nothing")
-
-    return str(mp3_files[0])
-
-
 def transcribe_audio(audio_path: str, model_size: str = "base") -> Tuple[str, List[dict]]:
-    """
-    Transcribe audio using faster-whisper.
-    Returns (full_transcript, segments_with_timestamps)
-    """
+    """Transcribe a locally available audio or video file with Whisper."""
     from faster_whisper import WhisperModel
 
-    logger.info(f"Loading Whisper model '{model_size}'")
+    logger.info("Loading Whisper model '%s'", model_size)
     model = WhisperModel(model_size, device="cpu", compute_type="int8")
+    logger.info("Transcribing %s", audio_path)
+    segments, _ = model.transcribe(audio_path, beam_size=5)
 
-    logger.info(f"Transcribing: {audio_path}")
-    segments, info = model.transcribe(audio_path, beam_size=5)
-
-    full_text_parts = []
+    text_parts = []
     segment_list = []
-
     for segment in segments:
         text = segment.text.strip()
-        full_text_parts.append(text)
-        segment_list.append({
-            "start": segment.start,
-            "end": segment.end,
-            "text": text,
-        })
+        if text:
+            text_parts.append(text)
+            segment_list.append(
+                {"start": segment.start, "end": segment.end, "text": text}
+            )
 
-    full_transcript = " ".join(full_text_parts)
-    logger.info(f"Transcription complete: {len(segment_list)} segments, {len(full_transcript)} chars")
-    return full_transcript, segment_list
+    transcript = " ".join(text_parts).strip()
+    if not transcript:
+        raise ValueError("Whisper could not detect spoken content in this file")
+    logger.info("Transcription complete: %s segments", len(segment_list))
+    return transcript, segment_list
 
 
 async def download_from_supabase(storage_path: str, local_path: str) -> str:
-    """Download a file from Supabase Storage to a local path."""
+    """Resolve a local upload or download an object from configured storage."""
     if os.path.exists(storage_path):
-        logger.info("Using local upload: %s", storage_path)
         return storage_path
 
     from app.config import settings
-    from supabase import create_client
 
     if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
-        raise RuntimeError("Supabase is not configured and local upload file was not found")
+        raise RuntimeError("The uploaded file is unavailable from local or configured storage")
 
-    client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-    response = client.storage.from_(settings.SUPABASE_BUCKET).download(storage_path)
-
-    with open(local_path, "wb") as f:
-        f.write(response)
-
-    logger.info(f"Downloaded from Supabase: {storage_path} → {local_path}")
-    return local_path
-
-
-async def upload_to_supabase(local_path: str, storage_path: str, content_type: str = "audio/mpeg") -> str:
-    """Upload a local file to Supabase Storage, return the storage path."""
-    from app.config import settings
     from supabase import create_client
 
     client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-
-    with open(local_path, "rb") as f:
-        client.storage.from_(settings.SUPABASE_BUCKET).upload(
-            path=storage_path,
-            file=f,
-            file_options={"content-type": content_type},
-        )
-
-    logger.info(f"Uploaded to Supabase: {local_path} → {storage_path}")
-    return storage_path
+    content = client.storage.from_(settings.SUPABASE_BUCKET).download(storage_path)
+    with open(local_path, "wb") as output:
+        output.write(content)
+    return local_path

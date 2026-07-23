@@ -6,6 +6,7 @@ import Sidebar from './components/ui/Sidebar'
 import CommandPalette from './components/ui/CommandPalette'
 import ErrorBoundary from './components/ui/ErrorBoundary'
 import Landing from './pages/Landing'
+import Privacy from './pages/Privacy'
 import Dashboard from './pages/Dashboard'
 import LectureView from './pages/LectureView'
 import Review from './pages/Review'
@@ -86,6 +87,7 @@ export default function App() {
       <ErrorBoundary>
         <Routes>
           <Route path="/" element={<Layout><Landing /></Layout>} />
+          <Route path="/privacy" element={<Layout><Privacy /></Layout>} />
           <Route path="/auth/success" element={<AuthCallback />} />
           <Route
             path="/dashboard"

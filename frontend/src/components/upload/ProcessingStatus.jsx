@@ -4,8 +4,8 @@ import { api } from '../../api/client'
 import toast from 'react-hot-toast'
 
 const STEPS = [
-  { step: 1, label: 'Downloading audio' },
-  { step: 2, label: 'Transcribing with Whisper' },
+  { step: 1, label: 'Preparing your upload' },
+  { step: 2, label: 'Transcribing or reading text' },
   { step: 3, label: 'Extracting concepts' },
   { step: 4, label: 'Building knowledge graph' },
   { step: 5, label: 'Generating flashcards' },

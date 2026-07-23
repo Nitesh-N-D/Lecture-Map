@@ -5,8 +5,6 @@ import useStore from '../../store/useStore'
 import Button from './Button'
 import toast from 'react-hot-toast'
 
-const GOOGLE_URL = `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/auth/google`
-
 export default function AuthModal({ open, onClose, initialMode = 'login' }) {
   const [mode, setMode] = useState(initialMode)
   const [email, setEmail] = useState('')
@@ -103,20 +101,6 @@ export default function AuthModal({ open, onClose, initialMode = 'login' }) {
             : 'Free, no credit card. Use an email and password.'}
         </p>
 
-        <a
-          href={GOOGLE_URL}
-          className="w-full flex items-center justify-center gap-2 border surface-border rounded-lg py-2.5 text-sm font-medium text-primary hover:bg-slate-50 transition-colors mb-3"
-        >
-          <GoogleIcon />
-          Continue with Google
-        </a>
-
-        <div className="flex items-center gap-3 my-4">
-          <div className="flex-1 h-px bg-[var(--surface-border)]" />
-          <span className="text-xs text-tertiary">or</span>
-          <div className="flex-1 h-px bg-[var(--surface-border)]" />
-        </div>
-
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           {mode === 'signup' && (
             <label className="text-xs font-medium text-secondary">
@@ -169,15 +153,15 @@ export default function AuthModal({ open, onClose, initialMode = 'login' }) {
         <p className="text-center text-xs text-tertiary mt-4">
           {mode === 'login' ? (
             <>Do not have an account?{' '}
-              <button onClick={() => { setMode('signup'); setError('') }} className="text-brand-600 font-medium hover:underline">
+              <Button type="button" variant="ghost" size="sm" onClick={() => { setMode('signup'); setError('') }} className="text-brand-600 font-medium h-auto px-0">
                 Sign up
-              </button>
+              </Button>
             </>
           ) : (
             <>Already have an account?{' '}
-              <button onClick={() => { setMode('login'); setError('') }} className="text-brand-600 font-medium hover:underline">
+              <Button type="button" variant="ghost" size="sm" onClick={() => { setMode('login'); setError('') }} className="text-brand-600 font-medium h-auto px-0">
                 Sign in
-              </button>
+              </Button>
             </>
           )}
         </p>
@@ -192,16 +176,5 @@ export default function AuthModal({ open, onClose, initialMode = 'login' }) {
         </Button>
       </div>
     </div>
-  )
-}
-
-function GoogleIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 18 18" aria-hidden="true">
-      <path fill="#4285F4" d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.8 2.72v2.26h2.9c1.7-1.57 2.7-3.88 2.7-6.62z"/>
-      <path fill="#34A853" d="M9 18c2.43 0 4.47-.8 5.96-2.18l-2.9-2.26c-.81.54-1.84.86-3.06.86-2.35 0-4.34-1.59-5.05-3.72H.96v2.33A9 9 0 0 0 9 18z"/>
-      <path fill="#FBBC05" d="M3.95 10.7A5.41 5.41 0 0 1 3.67 9c0-.59.1-1.17.28-1.7V4.97H.96A9 9 0 0 0 0 9c0 1.45.35 2.83.96 4.03l2.99-2.33z"/>
-      <path fill="#EA4335" d="M9 3.58c1.32 0 2.51.46 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.97L3.95 7.3C4.65 5.17 6.65 3.58 9 3.58z"/>
-    </svg>
   )
 }

@@ -94,8 +94,8 @@ def process_lecture_direct(lecture_id: str):
 def _process_lecture_impl(lecture_id: str, celery_task=None):
     """
     Main pipeline logic, shared by both entrypoints above:
-    1. Download audio (YouTube or Supabase)
-    2. Transcribe with Whisper
+    1. Retrieve an uploaded audio/video/PDF file
+    2. Transcribe audio/video or extract PDF text
     3. Extract concepts + edges with Gemini
     4. Store graph in Neo4j
     5. Generate flashcards
@@ -135,29 +135,27 @@ def _process_lecture_impl(lecture_id: str, celery_task=None):
             # ── Step 1: Download ────────────────────────────────────────
             update_status(LectureStatus.PROCESSING, step=STEP_DOWNLOAD)
 
-            if lecture.youtube_url:
-                logger.info(f"Downloading YouTube: {lecture.youtube_url}")
-                from app.services.transcription import download_youtube_audio
-                audio_path = _run_async(
-                    download_youtube_audio(lecture.youtube_url, tmpdir)
-                )
-                if not lecture.title:
-                    import re
-                    lecture.title = f"YouTube Lecture"
-                    db.commit()
-            elif lecture.storage_path:
+            if lecture.storage_path:
                 local_path = os.path.join(tmpdir, "lecture_audio.mp3")
                 from app.services.transcription import download_from_supabase
                 audio_path = _run_async(
                     download_from_supabase(lecture.storage_path, local_path)
                 )
             else:
-                raise ValueError("No audio source: neither youtube_url nor storage_path set")
+                raise ValueError("No uploaded file is available for this lecture")
 
             # ── Step 2: Transcribe ──────────────────────────────────────
             update_status(LectureStatus.PROCESSING, step=STEP_TRANSCRIBE)
-            from app.services.transcription import transcribe_audio
-            transcript, segments = transcribe_audio(audio_path, model_size="base")
+            from app.services.documents import is_pdf_file, extract_pdf_text
+            if is_pdf_file(audio_path):
+                transcript = extract_pdf_text(audio_path)
+                segments = []
+            else:
+                from app.services.transcription import transcribe_audio
+                transcript, segments = transcribe_audio(audio_path, model_size="base")
+
+            if not transcript.strip():
+                raise ValueError("No readable lecture content was found in the uploaded file")
 
             lecture.transcript = transcript
             if segments:
@@ -182,6 +180,11 @@ def _process_lecture_impl(lecture_id: str, celery_task=None):
 
             async def _store():
                 await neo4j_client.connect()
+                if not neo4j_client.driver:
+                    raise RuntimeError(
+                        "Graph storage is unavailable. Configure the free Neo4j Aura credentials "
+                        "in the backend environment and upload the file again."
+                    )
                 return await store_graph(lecture_id, graph_data)
 
             node_count, edge_count = _run_async(_store())

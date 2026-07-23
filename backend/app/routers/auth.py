@@ -194,6 +194,15 @@ async def create_guest(db: AsyncSession = Depends(get_db)):
     )
 
 
+@router.post("/logout")
+async def logout(current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
+    """End a guest session immediately and clear its temporary data."""
+    if current_user.is_guest:
+        await db.delete(current_user)
+        await db.commit()
+    return {"message": "Signed out"}
+
+
 # ── Current User ──────────────────────────────────────────────────────────────
 
 @router.get("/me", response_model=UserResponse)

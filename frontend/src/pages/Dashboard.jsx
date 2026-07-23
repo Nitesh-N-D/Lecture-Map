@@ -172,7 +172,7 @@ export default function Dashboard() {
       ) : lectures.length === 0 ? (
         <div className="text-center py-16 sm:py-20 text-tertiary border border-dashed surface-border rounded-xl bg-white">
           <p className="font-medium text-secondary mb-2">No lectures yet</p>
-          <p className="text-sm px-4">Add your first audio, video, or YouTube lecture to get started.</p>
+          <p className="text-sm px-4">Add your first audio, video, or text-based PDF to get started.</p>
           <Button
             variant="ghost"
             onClick={() => setShowUpload(true)}
