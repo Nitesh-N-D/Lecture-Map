@@ -21,11 +21,17 @@ function AuthCallback() {
 
   useEffect(() => {
     const token = params.get('token')
+    const oauthError = params.get('error')
+    if (oauthError) {
+      setReady(true)
+      return
+    }
     if (token) {
       // Fetch user info with the token
       const fetchUser = async () => {
         try {
-          const res = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/auth/me`, {
+          const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+          const res = await fetch(`${apiUrl}/auth/me`, {
             headers: { Authorization: `Bearer ${token}` },
           })
           const user = await res.json()
@@ -41,8 +47,9 @@ function AuthCallback() {
     }
   }, [])
 
-  if (!ready) return null
-  return <Navigate to="/dashboard" replace />
+  if (!ready) return <div className="min-h-screen surface-bg grid place-items-center text-sm text-secondary">Completing sign-in…</div>
+  const oauthError = params.get('error')
+  return <Navigate to={oauthError ? `/?auth_error=${encodeURIComponent(oauthError)}` : '/dashboard'} replace />
 }
 
 function RequireAuth({ children }) {
@@ -75,7 +82,7 @@ function Layout({ children, withSidebar = false }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <Toaster
         position="top-right"
         toastOptions={{

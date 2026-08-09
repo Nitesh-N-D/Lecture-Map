@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { api } from '../api/client'
 import useStore from '../store/useStore'
 import AuthModal from '../components/ui/AuthModal'
@@ -22,6 +22,7 @@ const FEATURES = [
 
 export default function Landing() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { setAuth } = useStore()
   const [authModal, setAuthModal] = useState(null)
 
@@ -34,6 +35,8 @@ export default function Landing() {
       toast.error(error.response?.data?.detail || 'Unable to start a guest session')
     }
   }
+
+  const authError = searchParams.get('auth_error')
 
   return (
     <div className="bg-white text-slate-950">
@@ -55,6 +58,7 @@ export default function Landing() {
               <Button type="button" variant="ghost" size="sm" className="h-auto px-0 hover:text-brand-700" onClick={() => setAuthModal('login')}>Sign in</Button>
               <Link className="hover:text-brand-700" to="/privacy">Privacy</Link>
             </div>
+            {authError && <p role="alert" className="mt-4 text-sm text-red-700">Google sign-in could not be completed. Please try again or use email sign-in.</p>}
           </div>
           <UploadZone onSubmit={(lectureId) => navigate(`/lectures/${lectureId}`)} />
         </div>

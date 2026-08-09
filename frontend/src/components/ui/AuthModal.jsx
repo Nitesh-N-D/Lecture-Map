@@ -77,6 +77,11 @@ export default function AuthModal({ open, onClose, initialMode = 'login' }) {
     }
   }
 
+  const handleGoogleLogin = () => {
+    const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+    window.location.assign(`${apiUrl}/auth/google`)
+  }
+
   return (
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center px-4 cmdk-overlay"
@@ -150,6 +155,16 @@ export default function AuthModal({ open, onClose, initialMode = 'login' }) {
           </Button>
         </form>
 
+        <div className="relative my-5">
+          <div className="absolute inset-0 flex items-center"><div className="w-full border-t surface-border" /></div>
+          <div className="relative flex justify-center"><span className="surface-card px-3 text-xs text-tertiary">or</span></div>
+        </div>
+
+        <Button type="button" variant="outline" onClick={handleGoogleLogin} disabled={loading} className="w-full gap-2">
+          <span aria-hidden="true" className="grid h-5 w-5 place-items-center rounded-full border border-slate-300 text-[11px] font-bold text-brand-600">G</span>
+          Continue with Google
+        </Button>
+
         <p className="text-center text-xs text-tertiary mt-4">
           {mode === 'login' ? (
             <>Do not have an account?{' '}
@@ -170,7 +185,7 @@ export default function AuthModal({ open, onClose, initialMode = 'login' }) {
           variant="ghost"
           onClick={handleGuestLogin}
           disabled={loading}
-          className="w-full mt-4 text-xs text-tertiary"
+          className="w-full mt-3 text-xs text-tertiary"
         >
           Continue as guest without signup
         </Button>

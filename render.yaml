@@ -48,6 +48,8 @@ services:
         generateValue: true
       - key: FRONTEND_URL
         sync: false
+      - key: BACKEND_URL
+        sync: false
       - key: ENVIRONMENT
         value: production
       - key: USE_CELERY

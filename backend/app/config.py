@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     
     # App
     FRONTEND_URL: str = "http://localhost:5173"
+    # The public API origin. This is used for OAuth callback URLs, which must
+    # exactly match the URL registered with Google. Set it to the Render API
+    # URL in production (for example https://lecturemap-api.onrender.com).
+    BACKEND_URL: str = "http://localhost:8000"
     ENVIRONMENT: str = "development"
 
     class Config:

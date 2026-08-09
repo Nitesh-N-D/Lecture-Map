@@ -1,5 +1,6 @@
 import uuid
 import logging
+from urllib.parse import urlencode
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -112,10 +113,7 @@ async def google_login(request: Request):
         raise HTTPException(501, "Google OAuth dependencies are not installed")
     if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
         raise HTTPException(501, "Google OAuth not configured")
-    if settings.ENVIRONMENT == "production":
-        redirect_uri = "https://lecture-map-backend.onrender.com/auth/google/callback"
-    else:
-        redirect_uri = "http://localhost:8000/auth/google/callback"
+    redirect_uri = f"{settings.BACKEND_URL.rstrip('/')}/auth/google/callback"
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
@@ -126,7 +124,9 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     try:
         token = await oauth.google.authorize_access_token(request)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"OAuth error: {e}")
+        logger.warning("Google OAuth callback failed: %s", e)
+        query = urlencode({"error": "google_oauth_failed"})
+        return RedirectResponse(f"{settings.FRONTEND_URL.rstrip('/')}/auth/success?{query}")
 
     user_info = token.get("userinfo") or await oauth.google.userinfo(token=token)
 
@@ -134,6 +134,11 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
     email = user_info.get("email")
     name = user_info.get("name")
     avatar_url = user_info.get("picture")
+
+    if not google_id or not email:
+        logger.warning("Google OAuth response did not include a verified identity")
+        query = urlencode({"error": "google_identity_unavailable"})
+        return RedirectResponse(f"{settings.FRONTEND_URL.rstrip('/')}/auth/success?{query}")
 
     # Get or create user
     result = await db.execute(select(User).where(User.google_id == google_id))
@@ -165,7 +170,7 @@ async def google_callback(request: Request, db: AsyncSession = Depends(get_db)):
         await db.refresh(user)
 
     access_token = create_access_token(user.id, is_guest=False)
-    redirect_url = f"{settings.FRONTEND_URL}/auth/success?token={access_token}"
+    redirect_url = f"{settings.FRONTEND_URL.rstrip('/')}/auth/success?{urlencode({'token': access_token})}"
     return RedirectResponse(url=redirect_url)
 
 
