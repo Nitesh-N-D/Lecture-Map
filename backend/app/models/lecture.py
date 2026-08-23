@@ -22,6 +22,10 @@ class Lecture(Base):
     original_filename = Column(String, nullable=True)
     storage_path = Column(String, nullable=True)
     transcript = Column(Text, nullable=True)
+    # A portable copy of the generated graph keeps the core study experience
+    # usable in local development when Neo4j is intentionally not configured.
+    graph_data = Column(Text, nullable=True)
+    visited_concept_ids = Column(Text, nullable=True)
     status = Column(SAEnum(LectureStatus), default=LectureStatus.PENDING, nullable=False)
     celery_task_id = Column(String, nullable=True)
     progress_step = Column(Integer, default=0, nullable=False)  # 0-5

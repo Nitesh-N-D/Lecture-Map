@@ -2,6 +2,7 @@ import os
 import tempfile
 import logging
 import asyncio
+import json
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import app.models
 from app.celery_app import celery_app
@@ -181,13 +182,13 @@ def _process_lecture_impl(lecture_id: str, celery_task=None):
             async def _store():
                 await neo4j_client.connect()
                 if not neo4j_client.driver:
-                    raise RuntimeError(
-                        "Graph storage is unavailable. Configure the free Neo4j Aura credentials "
-                        "in the backend environment and upload the file again."
-                    )
+                    # The JSON copy is served by the API when Neo4j is absent.
+                    # Neo4j remains an optional accelerator for traversals.
+                    return len(concepts), len(edges)
                 return await store_graph(lecture_id, graph_data)
 
             node_count, edge_count = _run_async(_store())
+            lecture.graph_data = json.dumps(graph_data)
             lecture.concept_count = node_count
             lecture.edge_count = edge_count
             db.commit()
@@ -201,11 +202,15 @@ def _process_lecture_impl(lecture_id: str, celery_task=None):
             flashcard_count = 0
             for concept in concepts:
                 try:
-                    cards = _run_async(generate_flashcards_for_concept(
-                        concept_name=concept["name"],
-                        definition=concept["definition"],
-                        context=transcript[:3000],
-                    ))
+                    if settings.GEMINI_API_KEY:
+                        cards = _run_async(generate_flashcards_for_concept(
+                            concept_name=concept["name"], definition=concept["definition"], context=transcript[:3000],
+                        ))
+                    else:
+                        cards = [{
+                            "question": f"What does {concept['name']} mean in this lecture?",
+                            "answer": concept["definition"],
+                        }]
                     for card_data in cards:
                         card = Flashcard(
                             lecture_id=lecture_id,

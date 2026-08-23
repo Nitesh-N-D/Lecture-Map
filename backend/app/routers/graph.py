@@ -1,4 +1,5 @@
 import logging
+import json
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -8,7 +9,7 @@ from app.models.user import User
 from app.models.lecture import Lecture
 from app.auth import get_current_user
 from app.neo4j_client import neo4j_client
-from app.services.graph_service import get_graph_with_stats
+from app.services.graph_service import get_graph_with_stats, graph_from_lecture
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["graph"])
@@ -51,10 +52,10 @@ async def get_graph(
     if not lecture:
         raise HTTPException(404, "Lecture not found")
 
-    graph = await get_graph_with_stats(lecture_id)
+    graph = await get_graph_with_stats(lecture_id) if neo4j_client.driver else graph_from_lecture(lecture)
 
     # Annotate visited nodes
-    visited = await neo4j_client.get_visited_concepts(lecture_id, current_user.id)
+    visited = await neo4j_client.get_visited_concepts(lecture_id, current_user.id) if neo4j_client.driver else json.loads(lecture.visited_concept_ids or "[]")
     visited_set = set(visited)
     for node in graph["nodes"]:
         node["is_visited"] = node.get("concept_id") in visited_set
@@ -75,7 +76,7 @@ async def get_graph_gaps(
     if not lecture:
         raise HTTPException(404, "Lecture not found")
 
-    gaps = await neo4j_client.get_gap_nodes(lecture_id, current_user.id)
+    gaps = await neo4j_client.get_gap_nodes(lecture_id, current_user.id) if neo4j_client.driver else []
     return {"gaps": gaps, "total_gaps": len(gaps)}
 
 
@@ -86,6 +87,18 @@ async def get_concept(
     db: AsyncSession = Depends(get_db),
     lecture_id: str | None = Query(None),
 ):
+    if not neo4j_client.driver:
+        result = await db.execute(select(Lecture).where(Lecture.id == lecture_id, Lecture.user_id == current_user.id))
+        lecture = result.scalar_one_or_none()
+        graph = graph_from_lecture(lecture) if lecture else {"nodes": [], "edges": []}
+        node = next((item for item in graph["nodes"] if item["concept_id"] == concept_id), None)
+        if not node:
+            raise HTTPException(404, "Concept not found")
+        nodes_by_id = {item["concept_id"]: item for item in graph["nodes"]}
+        prerequisites = [nodes_by_id[e["from"]] for e in graph["edges"] if e["to"] == concept_id and e["from"] in nodes_by_id]
+        dependents = [nodes_by_id[e["to"]] for e in graph["edges"] if e["from"] == concept_id and e["to"] in nodes_by_id]
+        visited = concept_id in set(json.loads(lecture.visited_concept_ids or "[]"))
+        return {"concept_id": concept_id, "prerequisites": prerequisites, "dependents": dependents, "is_visited": visited}
     await _verify_concept_owner(concept_id, current_user, db, lecture_id)
     prereqs = await neo4j_client.get_prerequisites(concept_id)
     dependents = await neo4j_client.get_dependents(concept_id)
@@ -106,6 +119,16 @@ async def mark_visited(
     db: AsyncSession = Depends(get_db),
     lecture_id: str | None = Query(None),
 ):
+    if not neo4j_client.driver:
+        result = await db.execute(select(Lecture).where(Lecture.id == lecture_id, Lecture.user_id == current_user.id))
+        lecture = result.scalar_one_or_none()
+        if not lecture or concept_id not in {n["concept_id"] for n in graph_from_lecture(lecture)["nodes"]}:
+            raise HTTPException(404, "Concept not found")
+        visited = set(json.loads(lecture.visited_concept_ids or "[]"))
+        visited.add(concept_id)
+        lecture.visited_concept_ids = json.dumps(sorted(visited))
+        await db.commit()
+        return {"success": True, "concept_id": concept_id}
     await _verify_concept_owner(concept_id, current_user, db, lecture_id)
     success = await neo4j_client.mark_visited(concept_id, current_user.id)
     return {"success": success, "concept_id": concept_id}

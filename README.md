@@ -78,7 +78,7 @@ Do not expose Supabase, Gemini, Neo4j, or JWT secrets in the frontend. The front
             |
     Dashboard shows completed material or the saved error
 
-A valid file still requires Gemini and Neo4j credentials to finish the full graph workflow. Missing credentials produce a visible FAILED status with a useful reason.
+A valid file works locally without Gemini or Neo4j: LectureMap builds an extractive concept map and starter flashcards from the uploaded text. Configure Gemini for richer AI-generated concepts/cards and Neo4j for graph traversal and cross-lecture graph persistence.
 
 ## API overview
 

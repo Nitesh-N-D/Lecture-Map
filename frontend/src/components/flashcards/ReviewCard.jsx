@@ -3,7 +3,7 @@ import { QUALITY_LABELS, getEasinessColor, getEasinessLabel } from '../../utils/
 
 // Maps keyboard digit keys to SM-2 quality ratings, matching the four
 // buttons shown on screen (Again / Hard / Good / Easy).
-const KEY_TO_QUALITY = { '0': 0, '1': 2, '2': 2, '3': 3, '4': 3, '5': 5 }
+const KEY_TO_QUALITY = { '1': 0, '2': 2, '3': 3, '4': 5 }
 
 export default function ReviewCard({ card, onRate, remaining }) {
   const [flipped, setFlipped] = useState(false)
@@ -61,7 +61,7 @@ export default function ReviewCard({ card, onRate, remaining }) {
           <div className="flex-1 h-1.5 surface-border bg-[var(--surface-border)] rounded-full overflow-hidden">
             <div
               className="h-full bg-brand-500 rounded-full transition-all"
-              style={{ width: remaining > 0 ? `${Math.max(5, 100 - remaining * 5)}%` : '100%' }}
+              style={{ width: `${Math.max(0, Math.min(100, 100 - (remaining / Math.max(remaining + 1, 1)) * 100))}%` }}
             />
           </div>
           <span className="text-xs text-tertiary shrink-0">{remaining} left</span>
@@ -159,7 +159,7 @@ export default function ReviewCard({ card, onRate, remaining }) {
                 <span className="text-sm font-semibold" style={{ color }}>{label}</span>
                 <span className="text-xs text-tertiary">{description}</span>
                 <kbd className="absolute -top-2 -right-2 text-[9px] font-mono surface-card border surface-border rounded px-1 text-tertiary">
-                  {q}
+                  {q === 0 ? '1' : q === 2 ? '2' : q === 3 ? '3' : '4'}
                 </kbd>
               </button>
             )

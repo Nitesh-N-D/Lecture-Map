@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import declarative_base
+from sqlalchemy import inspect, text
 from app.config import settings
 import logging
 
@@ -56,4 +57,12 @@ async def init_db():
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # create_all does not add new columns to an existing local SQLite DB.
+        # Keep lightweight self-hosted installs working; Alembic handles the
+        # same schema change in managed production deployments.
+        columns = await conn.run_sync(lambda sync_conn: {c["name"] for c in inspect(sync_conn).get_columns("lectures")})
+        if "graph_data" not in columns:
+            await conn.execute(text("ALTER TABLE lectures ADD COLUMN graph_data TEXT"))
+        if "visited_concept_ids" not in columns:
+            await conn.execute(text("ALTER TABLE lectures ADD COLUMN visited_concept_ids TEXT"))
     logger.info("Database tables created/verified")

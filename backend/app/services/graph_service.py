@@ -1,4 +1,5 @@
 import logging
+import json
 from typing import List, Optional
 from app.neo4j_client import neo4j_client
 
@@ -77,3 +78,26 @@ async def get_graph_with_stats(lecture_id: str) -> dict:
     }
 
     return {"nodes": nodes, "edges": edges, "stats": stats}
+
+
+def graph_from_lecture(lecture) -> dict:
+    """Convert the portable graph snapshot on a Lecture into API graph data."""
+    try:
+        raw = json.loads(lecture.graph_data or "{}")
+    except (TypeError, json.JSONDecodeError):
+        raw = {}
+    nodes = [
+        {
+            "concept_id": concept.get("id"),
+            "name": concept.get("name", "Untitled concept"),
+            "definition": concept.get("definition", ""),
+            "timestamp_seconds": concept.get("timestamp_seconds", 0),
+            "difficulty": concept.get("difficulty", "intermediate"),
+        }
+        for concept in raw.get("concepts", [])
+    ]
+    edges = [
+        {"from": edge.get("from"), "to": edge.get("to"), "strength": edge.get("strength", 0.5)}
+        for edge in raw.get("edges", [])
+    ]
+    return {"nodes": nodes, "edges": edges}

@@ -15,7 +15,7 @@ const TABS = ['Graph', 'Flashcards', 'Insights', 'Transcript']
 export default function LectureView() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { setGraphData, setSelectedNode, selectedNode, setGapNodes, setVisitedNodes, graphData, visitedNodes, logActivity } = useStore()
+  const { setGraphData, setSelectedNode, selectedNode, setGapNodes, setVisitedNodes, graphData, visitedNodes } = useStore()
   const [lecture, setLecture] = useState(null)
   const [flashcards, setFlashcards] = useState([])
   const [rawGaps, setRawGaps] = useState([])
@@ -233,7 +233,6 @@ export default function LectureView() {
               <FlashcardDeck
                 cards={dueCards}
                 onComplete={() => {
-                  logActivity(dueCards.length)
                   toast.success('Review session done!')
                   loadAll()
                 }}

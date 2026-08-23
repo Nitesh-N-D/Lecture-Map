@@ -1,6 +1,7 @@
 import json
 import logging
 import re
+from collections import Counter
 
 import google.generativeai as genai
 from app.config import settings
@@ -77,6 +78,35 @@ def _configure_gemini():
     return genai.GenerativeModel("gemini-1.5-flash")
 
 
+def _local_concept_fallback(transcript: str) -> dict:
+    """Create a small, honest offline study set when Gemini is not configured.
+
+    This is deliberately extractive: it only uses meaningful terms present in
+    the uploaded text, rather than pretending to provide AI-generated facts.
+    """
+    sentences = [s.strip() for s in re.split(r"(?<=[.!?])\s+|\n+", transcript) if len(s.strip()) > 35]
+    words = re.findall(r"[A-Za-z][A-Za-z'-]{3,}", transcript.lower())
+    stop_words = {"about", "after", "also", "because", "between", "could", "each", "from", "have", "into", "more", "most", "other", "over", "should", "that", "the", "their", "there", "these", "this", "those", "through", "using", "with", "would", "your", "which", "where", "when"}
+    candidates = [word for word in words if word not in stop_words]
+    ranked = [word for word, _ in Counter(candidates).most_common(12)]
+    concepts = []
+    for index, term in enumerate(ranked[:8]):
+        context = next((sentence for sentence in sentences if term in sentence.lower()), "")
+        if not context:
+            continue
+        concepts.append({
+            "id": f"concept_{index + 1}_{term}",
+            "name": term.replace("-", " ").title(),
+            "definition": context[:500],
+            "timestamp_seconds": 0,
+            "difficulty": "beginner" if index < 3 else "intermediate",
+        })
+    if not concepts:
+        concepts = [{"id": "lecture_overview", "name": "Lecture overview", "definition": transcript[:500], "timestamp_seconds": 0, "difficulty": "beginner"}]
+    edges = [{"from": concepts[i - 1]["id"], "to": concepts[i]["id"], "strength": 0.5} for i in range(1, len(concepts))]
+    return {"concepts": concepts, "edges": edges}
+
+
 def _load_json_from_model_text(raw_text: str):
     raw_text = raw_text.strip()
     raw_text = re.sub(r"^```json\s*", "", raw_text)
@@ -135,6 +165,10 @@ async def extract_concepts_and_edges(transcript: str, lecture_id: str) -> dict:
     if not transcript.strip():
         raise RuntimeError("Transcript is empty")
 
+    if not settings.GEMINI_API_KEY:
+        logger.info("Gemini is not configured; using local extractive concept fallback")
+        return _local_concept_fallback(transcript)
+
     model = _configure_gemini()
 
     max_chars = 80_000
@@ -173,6 +207,11 @@ async def generate_flashcards_for_concept(
     definition: str,
     context: str = "",
 ) -> list:
+    if not settings.GEMINI_API_KEY:
+        return [{
+            "question": f"What does {concept_name} mean in this lecture?",
+            "answer": definition or f"{concept_name} is a key idea from this lecture.",
+        }]
     model = _configure_gemini()
     prompt = FLASHCARD_PROMPT.format(
         concept_name=concept_name,
