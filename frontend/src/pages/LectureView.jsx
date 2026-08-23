@@ -15,7 +15,7 @@ const TABS = ['Graph', 'Flashcards', 'Insights', 'Transcript']
 export default function LectureView() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { setGraphData, setSelectedNode, selectedNode, setGapNodes, graphData, visitedNodes, logActivity } = useStore()
+  const { setGraphData, setSelectedNode, selectedNode, setGapNodes, setVisitedNodes, graphData, visitedNodes, logActivity } = useStore()
   const [lecture, setLecture] = useState(null)
   const [flashcards, setFlashcards] = useState([])
   const [rawGaps, setRawGaps] = useState([])
@@ -42,6 +42,7 @@ export default function LectureView() {
         const g = graphRes.value.data
         // Normalise edge keys for D3 (from/to → source/target handled in component)
         setGraphData(g)
+        setVisitedNodes((g.nodes || []).filter((node) => node.is_visited).map((node) => node.concept_id))
       }
       if (flashRes.status === 'fulfilled') setFlashcards(flashRes.value.data)
       if (gapsRes.status === 'fulfilled') {

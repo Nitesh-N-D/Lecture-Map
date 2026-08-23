@@ -65,6 +65,9 @@ const useStore = create(
           visitedNodes: new Set([...state.visitedNodes, conceptId]),
         })),
 
+      setVisitedNodes: (conceptIds) =>
+        set({ visitedNodes: new Set(conceptIds) }),
+
       setGapNodes: (gaps) =>
         set({ gapNodes: new Set(gaps.map((gap) => gap.concept_id)) }),
 

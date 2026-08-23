@@ -13,7 +13,7 @@ const DIFF_COLORS = {
 export default function StudyPath() {
   const { id } = useParams()
   const [searchParams] = useSearchParams()
-  const { graphData, setGraphData, visitedNodes, markNodeVisited } = useStore()
+  const { graphData, setGraphData, visitedNodes, setVisitedNodes, markNodeVisited } = useStore()
   const [path, setPath] = useState(null)
   const [targetId, setTargetId] = useState(searchParams.get('target') || '')
   const [loading, setLoading] = useState(false)
@@ -28,6 +28,7 @@ export default function StudyPath() {
       try {
         const { data } = await api.getGraph(id)
         setGraphData(data)
+        setVisitedNodes((data.nodes || []).filter((node) => node.is_visited).map((node) => node.concept_id))
       } catch {
         toast.error('Failed to load concept graph')
       } finally {
@@ -69,7 +70,7 @@ export default function StudyPath() {
 
   const handleMarkStudied = async (conceptId) => {
     try {
-      await api.markVisited(conceptId)
+      await api.markVisited(conceptId, id)
       markNodeVisited(conceptId)
       toast.success('Marked as studied!')
     } catch {
