@@ -46,10 +46,19 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
+      # Render terminates TLS and sets X-Forwarded-For, so per-client rate limits need it.
+      - key: TRUST_PROXY_HEADERS
+        value: "true"
+      - key: SESSION_SECRET
+        generateValue: true
+      # Must be https:// URLs. BACKEND_URL + /auth/google/callback is the redirect
+      # URI to register in Google Cloud Console.
       - key: FRONTEND_URL
         sync: false
       - key: BACKEND_URL
         sync: false
+      - key: CORS_ORIGINS
+        value: ""
       - key: ENVIRONMENT
         value: production
       - key: USE_CELERY

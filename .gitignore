@@ -36,3 +36,19 @@ Thumbs.db
 # ── Local data ───────────────────────────────────────────────────────
 *.log
 /tmp/
+
+.claude/
+CLAUDE.md
+# Uploaded lecture files and local databases
+backend/uploads/
+uploads/
+*.db
+!backend/browser-verification.db
+
+# Playwright
+frontend/.playwright-browsers/
+frontend/test-results/
+frontend/playwright-report/
+
+backend/e2e-scratch.db*
+backend/e2e-uploads/

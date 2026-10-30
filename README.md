@@ -89,6 +89,9 @@ A valid file works locally without Gemini or Neo4j: LectureMap builds an extract
 | POST | /auth/guest | Create a guest session |
 | POST | /auth/logout | End a guest session and invalidate it |
 | GET | /auth/me | Read current user |
+| GET | /auth/google | Start Google sign-in |
+| GET | /auth/me/export | Download all your data (JSON) |
+| DELETE | /auth/me | Delete your account and data |
 | POST | /lectures/upload | Upload supported audio, video, or PDF files |
 | GET | /lectures/{id}/status | Read progress or failure reason |
 | GET | /lectures/{id}/graph | Read the concept graph |
@@ -96,16 +99,26 @@ A valid file works locally without Gemini or Neo4j: LectureMap builds an extract
 | GET | /export/anki/{id} | Download Anki deck |
 | GET | /export/pdf/{id} | Download a PDF export |
 
+## Development and production
+
+One backend `.env` can serve both. `FRONTEND_URL` and `BACKEND_URL` accept comma-separated lists in the same order (for example localhost first, then the deployed https URL); the entry matching the request host is used. With `ENVIRONMENT=production` only public https entries are accepted, `/docs` is disabled and a strong `JWT_SECRET` is required. Google sign-in needs `{BACKEND_URL}/auth/google/callback` registered as an authorised redirect URI for each environment. See `docs/PRODUCTION_DEPLOYMENT_CHECKLIST.md`.
+
 ## Verification
 
-    cd frontend
-    npm run build
-    npx agent-browser open http://127.0.0.1:5173
-    npx agent-browser snapshot -i
-    npx agent-browser close
+    cd backend
+    python -m pytest
+    python -m compileall -q app
 
-    cd ..\backend
-    python -m compileall app
+    cd ..\frontend
+    npm test
+    npm run build
+    npx playwright install chromium   # once
+    npm run e2e
+
+    cd ..ackend
+    python scripts/live_integration_check.py   # optional, uses backend/.env
+
+Current results and what is not yet verified (live Google, Gemini, Whisper, Postgres, browser e2e) are in `docs/TESTING_AND_VERIFICATION_REPORT.md`. Security, privacy, SEO and error-handling notes are in `docs/`.
 
 ## Deployment
 
