@@ -1,14 +1,13 @@
 # LectureMap robots.txt
-# https://lecture-map.vercel.app/robots.txt
-
 User-agent: *
-Allow: /
+Allow: /$
+Allow: /privacy
 Disallow: /dashboard
 Disallow: /lectures/
 Disallow: /review
+Disallow: /knowledge-map
+Disallow: /settings
 Disallow: /auth/
 
-# Public marketing pages only — app pages require auth and have no SEO value
-Allow: /$
-
+# Replace with your production origin when deploying elsewhere.
 Sitemap: https://lecture-map.vercel.app/sitemap.xml

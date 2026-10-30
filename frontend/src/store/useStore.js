@@ -27,6 +27,8 @@ const useStore = create(
           gapNodes: new Set(),
           dueCards: [],
           reviewStats: null,
+          // Activity is per account; do not leave it behind on a shared device.
+          activityLog: {},
         }),
 
       lectures: [],

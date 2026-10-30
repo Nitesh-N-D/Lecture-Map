@@ -1,13 +1,10 @@
-import { useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import Seo from '../components/ui/Seo'
 
 export default function Privacy() {
-  useEffect(() => {
-    document.title = 'Privacy Policy | LectureMap'
-  }, [])
-
   return (
     <article className="max-w-3xl mx-auto px-4 sm:px-6 py-12 sm:py-16 text-slate-700">
+      <Seo title="Privacy Policy | LectureMap" description="How LectureMap processes your uploaded lectures, what it stores, and how you can export or delete your data." path="/privacy" />
       <p className="text-xs font-semibold tracking-[0.18em] text-brand-700 uppercase">LectureMap</p>
       <h1 className="mt-3 text-3xl sm:text-4xl font-semibold text-slate-950">Privacy policy</h1>
       <p className="mt-3 text-sm text-slate-500">Last updated: July 23, 2026</p>

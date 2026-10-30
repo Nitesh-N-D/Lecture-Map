@@ -3,14 +3,16 @@ import { useParams, useNavigate, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import useStore from '../store/useStore'
 import ConceptGraph from '../components/graph/ConceptGraph'
+import ConceptList from '../components/graph/ConceptList'
 import NodePanel from '../components/graph/NodePanel'
 import GapOverlay from '../components/graph/GapOverlay'
 import FlashcardDeck from '../components/flashcards/FlashcardDeck'
 import ConceptRadar from '../components/ui/ConceptRadar'
 import MasteryBadges from '../components/ui/MasteryBadges'
 import toast from 'react-hot-toast'
+import { errorMessage } from '../api/client'
 
-const TABS = ['Graph', 'Flashcards', 'Insights', 'Transcript']
+const TABS = ['Graph', 'Concepts', 'Flashcards', 'Insights', 'Transcript']
 
 export default function LectureView() {
   const { id } = useParams()
@@ -22,6 +24,7 @@ export default function LectureView() {
   const [tab, setTab] = useState('Graph')
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(null)
+  const [retrying, setRetrying] = useState(false)
 
   useEffect(() => {
     loadAll()
@@ -54,6 +57,19 @@ export default function LectureView() {
       toast.error('Failed to load lecture')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleRetry = async () => {
+    setRetrying(true)
+    try {
+      await api.retryLecture(id)
+      toast.success('Processing restarted')
+      await loadAll()
+    } catch (err) {
+      toast.error(errorMessage(err, 'Could not restart processing'))
+    } finally {
+      setRetrying(false)
     }
   }
 
@@ -157,12 +173,16 @@ export default function LectureView() {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b surface-border surface-card shrink-0 px-4 transition-colors">
+      <div role="tablist" aria-label="Lecture sections" className="flex overflow-x-auto border-b surface-border surface-card shrink-0 px-4 transition-colors">
         {TABS.map((t) => (
           <button
             key={t}
+            role="tab"
+            id={`tab-${t}`}
+            aria-selected={tab === t}
+            aria-controls="lecture-panel"
             onClick={() => setTab(t)}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            className={`whitespace-nowrap px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === t
                 ? 'border-brand-600 text-brand-600'
                 : 'border-transparent text-secondary hover:text-primary'
@@ -179,9 +199,37 @@ export default function LectureView() {
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 overflow-hidden relative">
+      <div className="flex-1 overflow-hidden relative flex flex-col" role="tabpanel" id="lecture-panel" aria-labelledby={`tab-${tab}`}>
+        {lecture.status === 'FAILED' && (
+          <div role="alert" className="flex flex-wrap items-center gap-3 border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800 shrink-0">
+            <span>Processing failed{lecture.error_message ? `: ${lecture.error_message}` : '.'}</span>
+            <button
+              type="button"
+              onClick={handleRetry}
+              disabled={retrying}
+              className="rounded-md border border-red-300 bg-white px-3 py-1 font-medium hover:bg-red-100 disabled:opacity-50"
+            >
+              {retrying ? 'Retrying…' : 'Retry processing'}
+            </button>
+          </div>
+        )}
+        {tab === 'Concepts' && (
+          <div className="flex flex-1 min-h-0">
+            <div className="flex-1 min-w-0">
+              <ConceptList
+                nodes={graphData?.nodes || []}
+                edges={graphData?.edges || []}
+                visitedIds={visitedNodes}
+                onSelect={(node) => setSelectedNode(node)}
+              />
+            </div>
+            {selectedNode && (
+              <NodePanel node={selectedNode} onClose={() => setSelectedNode(null)} lectureId={id} />
+            )}
+          </div>
+        )}
         {tab === 'Graph' && (
-          <div className="flex h-full">
+          <div className="flex flex-1 min-h-0">
             <div className="flex-1 overflow-hidden relative">
               {rawGaps.length > 0 && (
                 <GapOverlay

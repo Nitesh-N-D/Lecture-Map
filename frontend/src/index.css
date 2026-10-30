@@ -11,12 +11,31 @@
   --surface-border-strong: #cbd5e1;
   --text-primary: #0f172a;
   --text-secondary: #475569;
-  --text-tertiary: #94a3b8;
+  --text-tertiary: #64748b; /* 4.8:1 on white (AA); was #94a3b8 at 2.6:1 */
+  --focus-ring: #4338ca;
+  --atlas-ink: #0b1020;
+  --atlas-glow: #6366f1;
+  --atlas-teal: #0f766e;
   --surface-overlay: rgba(15, 23, 42, 0.4);
   color-scheme: light;
 }
 
 @layer base {
+  :focus-visible {
+    outline: 3px solid var(--focus-ring);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
   * {
     box-sizing: border-box;
   }
@@ -106,3 +125,22 @@
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--surface-border-strong); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+
+.skip-link {
+  position: absolute;
+  left: 0.5rem;
+  top: -4rem;
+  z-index: 100;
+  padding: 0.5rem 1rem;
+  background: var(--atlas-ink);
+  color: #fff;
+  border-radius: 0.5rem;
+}
+.skip-link:focus { top: 0.5rem; }
+
+.atlas-hero {
+  background:
+    radial-gradient(60rem 30rem at 85% -10%, rgba(99, 102, 241, 0.18), transparent 60%),
+    radial-gradient(40rem 24rem at 0% 110%, rgba(15, 118, 110, 0.12), transparent 60%),
+    #f8fafc;
+}

@@ -1,38 +1,50 @@
 import axios from 'axios'
+import useStore from '../store/useStore'
 
-const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
+// Local development falls back to the dev API; a production build must set VITE_API_URL
+// (an empty base means same-origin, e.g. behind a reverse proxy).
+export const API_BASE = (
+  import.meta.env.VITE_API_URL || (import.meta.env.DEV ? 'http://localhost:8000' : '')
+).replace(/\/$/, '')
 
 const client = axios.create({
   baseURL: API_BASE,
   timeout: 30000,
 })
 
-// Attach JWT token from store
+// Attach the session token from the store.
 client.interceptors.request.use((config) => {
-  // Get token from persisted Zustand store
-  try {
-    const raw = localStorage.getItem('lecturemap-store')
-    if (raw) {
-      const { state } = JSON.parse(raw)
-      if (state?.token) {
-        config.headers.Authorization = `Bearer ${state.token}`
-      }
-    }
-  } catch (_) {}
+  const { token } = useStore.getState()
+  if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
 
-// Handle 401 → logout
+// An expired or revoked session signs the user out through the store. Route guards
+// then send them to the landing page; there is no hard reload, so no redirect loop.
+// Requests made without a token (login attempts, public calls) never trigger this.
 client.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401 && !err.config?.skipAuthRedirect) {
-      localStorage.removeItem('lecturemap-store')
-      window.location.href = '/'
+    const sentToken = Boolean(err.config?.headers?.Authorization)
+    if (err.response?.status === 401 && sentToken && !err.config?.skipAuthRedirect) {
+      const { isAuthenticated, logout } = useStore.getState()
+      if (isAuthenticated) logout()
     }
     return Promise.reject(err)
   }
 )
+
+/** A short, user-presentable message for any failed API call. */
+export function errorMessage(err, fallback = 'Something went wrong. Please try again.') {
+  if (err?.code === 'ECONNABORTED') return 'The request timed out. Please try again.'
+  if (!err?.response) return 'Cannot reach the server. Check your connection and try again.'
+  const { status, data } = err.response
+  const detail = typeof data?.detail === 'string' ? data.detail : null
+  const ref = data?.request_id ? ` (ref ${String(data.request_id).slice(0, 8)})` : ''
+  if (status === 429) return `${detail || 'Too many requests.'} Please wait a moment.`
+  if (status >= 500) return `${detail || fallback}${ref}`
+  return detail || fallback
+}
 
 // ── API methods ───────────────────────────────────────────────────────────────
 
@@ -43,6 +55,9 @@ export const api = {
   signup: (email, password, name) => client.post('/auth/signup', { email, password, name }),
   login: (email, password) => client.post('/auth/login', { email, password }),
   getMe: () => client.get('/auth/me'),
+  exportMyData: () => client.get('/auth/me/export', { responseType: 'blob' }),
+  deleteAccount: (password) =>
+    client.delete('/auth/me', { data: { confirm: 'DELETE', password } }),
 
   // Lectures
   getLectures: () => client.get('/lectures'),
@@ -53,6 +68,7 @@ export const api = {
       timeout: 120000,
     }),
   deleteLecture: (id) => client.delete(`/lectures/${id}`),
+  retryLecture: (id) => client.post(`/lectures/${id}/retry`),
 
   // Graph
   getGraph: (lectureId) => client.get(`/lectures/${lectureId}/graph`),
@@ -61,6 +77,8 @@ export const api = {
     client.get(`/concepts/${conceptId}`, { params: { lecture_id: lectureId } }),
   markVisited: (conceptId, lectureId) =>
     client.post(`/concepts/${conceptId}/visit`, null, { params: { lecture_id: lectureId } }),
+  unmarkVisited: (conceptId, lectureId) =>
+    client.delete(`/concepts/${conceptId}/visit`, { params: { lecture_id: lectureId } }),
   getStudyPath: (lectureId, targetConceptId) =>
     client.get(`/lectures/${lectureId}/study-path`, {
       params: { target: targetConceptId },

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api } from '../../api/client'
+import { api, API_BASE } from '../../api/client'
 import useStore from '../../store/useStore'
 import Button from './Button'
 import toast from 'react-hot-toast'
@@ -78,8 +78,7 @@ export default function AuthModal({ open, onClose, initialMode = 'login' }) {
   }
 
   const handleGoogleLogin = () => {
-    const apiUrl = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '')
-    window.location.assign(`${apiUrl}/auth/google`)
+    window.location.assign(`${API_BASE}/auth/google`)
   }
 
   return (
@@ -89,11 +88,15 @@ export default function AuthModal({ open, onClose, initialMode = 'login' }) {
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="auth-dialog-title"
+        onKeyDown={(e) => { if (e.key === 'Escape') onClose() }}
         onClick={(e) => e.stopPropagation()}
         className="w-full max-w-sm surface-card border surface-border rounded-xl shadow-2xl p-6 animate-scale-in"
       >
         <div className="flex items-center justify-between mb-1">
-          <h2 className="text-lg font-semibold text-primary">
+          <h2 id="auth-dialog-title" className="text-lg font-semibold text-primary">
             {mode === 'login' ? 'Welcome back' : 'Create your account'}
           </h2>
           <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close" className="px-2">
@@ -142,7 +145,7 @@ export default function AuthModal({ open, onClose, initialMode = 'login' }) {
           </label>
 
           {error && (
-            <p className="text-xs text-red-500 animate-fade-in">{error}</p>
+            <p role="alert" className="text-xs text-red-700 animate-fade-in">{error}</p>
           )}
 
           <Button

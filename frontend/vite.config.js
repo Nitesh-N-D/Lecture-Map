@@ -17,6 +17,12 @@ export default defineConfig({
     port: 4173,
     host: true,
   },
+  test: {
+    environment: 'jsdom',
+    setupFiles: ['./src/test/setup.js'],
+    css: false,
+    exclude: ['e2e/**', 'node_modules/**', '.playwright-browsers/**'],
+  },
   build: {
     outDir: 'dist',
     sourcemap: false,

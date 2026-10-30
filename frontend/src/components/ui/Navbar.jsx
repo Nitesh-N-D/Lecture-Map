@@ -82,6 +82,12 @@ export default function Navbar() {
                 <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">guest</span>
               )}
             </span>
+            <Link
+              to="/settings"
+              className="hidden sm:inline-flex items-center h-9 px-3 rounded-md text-sm text-slate-600 hover:bg-slate-50"
+            >
+              Privacy
+            </Link>
             <Button
               variant="ghost"
               size="sm"

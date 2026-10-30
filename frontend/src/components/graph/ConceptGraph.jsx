@@ -22,6 +22,9 @@ function cssVar(name, fallback) {
   return v || fallback
 }
 
+const STATUS_GLYPHS = { studied: '✓', mastered: '★', blocked: '⊘' }
+const STATUS_LABELS = { unexplored: 'not studied', studied: 'studied', mastered: 'mastered', blocked: 'blocked by prerequisite' }
+
 export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
   const svgRef = useRef(null)
   const simulationRef = useRef(null)
@@ -35,6 +38,13 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
   const [ahaIndex, setAhaIndex] = useState(-1)
   const [ahaOrder, setAhaOrder] = useState([])
   const { visitedNodes, gapNodes } = useStore()
+  // The store's visited set is updated immediately on an explicit study action, so it wins
+  // over the (possibly older) status the API returned; mastery only comes from the API.
+  const statusOf = (d) => {
+    if (d.status === 'mastered') return 'mastered'
+    if (visitedNodes.has(d.concept_id)) return 'studied'
+    return d.status === 'blocked' ? 'blocked' : 'unexplored'
+  }
 
   // Observe container size
   useEffect(() => {
@@ -214,7 +224,7 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
       .attr('cursor', 'pointer')
       .attr('tabindex', 0)
       .attr('role', 'button')
-      .attr('aria-label', (d) => `${d.name} (${d.difficulty})`)
+      .attr('aria-label', (d) => `${d.name}, ${d.difficulty}, ${STATUS_LABELS[statusOf(d)]}`)
       .call(
         d3.drag()
           .on('start', (event, d) => {
@@ -260,20 +270,22 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
     node.append('circle')
       .attr('r', (d) => getNodeRadius(d.difficulty))
       .attr('fill', (d) => getNodeColor(d.difficulty, gapNodes.has(d.concept_id), visitedNodes.has(d.concept_id)))
-      .attr('fill-opacity', (d) => visitedNodes.has(d.concept_id) ? 1.0 : 0.75)
+      .attr('fill-opacity', (d) => statusOf(d) === 'studied' || statusOf(d) === 'mastered' ? 1.0 : 0.75)
       .attr('stroke', (d) => gapNodes.has(d.concept_id) ? '#dc2626' : '#fff')
       .attr('stroke-width', (d) => gapNodes.has(d.concept_id) ? 2.5 : 1.5)
+      .attr('stroke-dasharray', (d) => statusOf(d) === 'blocked' ? '3 2' : null)
       .attr('filter', (d) => gapNodes.has(d.concept_id) ? 'url(#glow)' : null)
 
-    // Visited checkmark
-    node.filter((d) => visitedNodes.has(d.concept_id))
+    // Status glyphs, so progress is never conveyed by colour alone:
+    // check = studied, star = mastered, slashed circle = blocked by an unfinished prerequisite.
+    node.filter((d) => statusOf(d) !== 'unexplored')
       .append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', '0.35em')
       .attr('font-size', '12px')
       .attr('fill', '#fff')
       .attr('pointer-events', 'none')
-      .text('✓')
+      .text((d) => STATUS_GLYPHS[statusOf(d)])
 
     // Label below node
     node.append('text')
@@ -414,6 +426,11 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
           <span className="flex items-center gap-1">
             <span className="w-3 h-3 rounded-full inline-block bg-red-400" />
             gap
+          </span>
+          <span className="flex items-center gap-2 border-l surface-border pl-3">
+            {Object.entries(STATUS_GLYPHS).map(([key, glyph]) => (
+              <span key={key}><span aria-hidden="true">{glyph}</span> {STATUS_LABELS[key]}</span>
+            ))}
           </span>
         </div>
 

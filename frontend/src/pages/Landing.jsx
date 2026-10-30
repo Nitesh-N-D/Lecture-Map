@@ -6,6 +6,7 @@ import AuthModal from '../components/ui/AuthModal'
 import UploadZone from '../components/upload/UploadZone'
 import Button from '../components/ui/Button'
 import toast from 'react-hot-toast'
+import Seo from '../components/ui/Seo'
 
 const FEATURES = [
   ['Audio and video upload', 'Bring recordings in common lecture formats up to 200MB.'],
@@ -40,7 +41,12 @@ export default function Landing() {
 
   return (
     <div className="bg-white text-slate-950">
-      <section className="border-b border-slate-200 bg-slate-50">
+      <Seo
+        title="LectureMap | Turn Lectures Into Knowledge Maps"
+        description="Turn lecture audio, video and PDFs into concept graphs, study paths and spaced-repetition flashcards, built from your own material."
+        path="/"
+      />
+      <section className="border-b border-slate-200 atlas-hero">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-14 lg:py-20 grid lg:grid-cols-[1.1fr_0.9fr] gap-10 lg:gap-14 items-center">
           <div>
             <p className="text-xs font-semibold tracking-[0.18em] text-brand-700 uppercase">LectureMap</p>

@@ -77,6 +77,15 @@ export default function UploadZone({ onSubmit }) {
         }}
         onDragLeave={() => setDragging(false)}
         onClick={() => inputRef.current?.click()}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            inputRef.current?.click()
+          }
+        }}
+        role="button"
+        tabIndex={0}
+        aria-label={file ? `Selected file ${file.name}. Press Enter to choose a different file` : 'Choose an audio, video or PDF file to upload'}
         className={`border-2 border-dashed rounded-xl p-9 flex flex-col items-center gap-3 cursor-pointer transition-colors ${uploadState}`}
       >
         <span className="grid h-9 w-9 place-items-center rounded-full bg-white border border-slate-200 text-lg font-semibold text-brand-600">
@@ -99,6 +108,9 @@ export default function UploadZone({ onSubmit }) {
           accept=".mp3,.mp4,.wav,.m4a,.webm,.ogg,.pdf,audio/*,video/*,application/pdf"
           onChange={(event) => setSelectedFile(event.target.files[0] || null)}
           className="hidden"
+          data-testid="upload-input"
+          tabIndex={-1}
+          aria-hidden="true"
         />
       </div>
       <Button onClick={handleSubmit} disabled={loading || !file} className="mt-5 w-full gap-2">
