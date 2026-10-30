@@ -1,11 +1,13 @@
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from app.config import settings
+from app.config import frontend_urls, settings
 from app.database import init_db
+from app.middleware import RequestGuardMiddleware, unhandled_exception_handler
 from app.neo4j_client import neo4j_client
 from app.routers import auth, lectures, graph, flashcards, export
 
@@ -20,6 +22,18 @@ async def lifespan(app: FastAPI):
 
     # PostgreSQL
     await init_db()
+
+    # Lectures left PENDING/PROCESSING by a previous process would spin forever.
+    try:
+        from app.tasks.pipeline import recover_interrupted_lectures
+
+        recovered = await run_in_threadpool(
+            recover_interrupted_lectures, all_in_flight=not settings.USE_CELERY
+        )
+        if recovered:
+            logger.warning("Marked %s interrupted lecture(s) as FAILED (retry available)", recovered)
+    except Exception as e:
+        logger.warning(f"Interrupted-lecture recovery skipped: {e}")
 
     # Neo4j (don't crash if unavailable)
     try:
@@ -47,28 +61,35 @@ app = FastAPI(
     description="Transform lecture audio/video into interactive knowledge graphs",
     version="1.0.0",
     lifespan=lifespan,
+    # Interactive API docs are a development convenience only.
+    docs_url=None if settings.ENVIRONMENT == "production" else "/docs",
+    redoc_url=None if settings.ENVIRONMENT == "production" else "/redoc",
+    openapi_url=None if settings.ENVIRONMENT == "production" else "/openapi.json",
 )
 
-# CORS
+# CORS: the configured frontend, optional extras, and local dev servers outside production.
+_origins = set(frontend_urls())
+_origins.update(o.strip().rstrip("/") for o in settings.CORS_ORIGINS.split(",") if o.strip())
+if settings.ENVIRONMENT != "production":
+    _origins.update({
+        "http://localhost:5173", "http://127.0.0.1:5173",
+        "http://localhost:3000", "http://127.0.0.1:3000",
+    })
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        settings.FRONTEND_URL,
-        "https://lecture-map.vercel.app",
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-    ],
+    allow_origins=sorted(_origins),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+app.add_middleware(RequestGuardMiddleware)
+app.add_exception_handler(Exception, unhandled_exception_handler)
+
 # Session Middleware (IMPORTANT for Google OAuth)
 app.add_middleware(
     SessionMiddleware,
-    secret_key=settings.JWT_SECRET,
+    secret_key=settings.SESSION_SECRET or settings.JWT_SECRET,
     same_site="lax",
     https_only=settings.ENVIRONMENT == "production",
     max_age=3600,

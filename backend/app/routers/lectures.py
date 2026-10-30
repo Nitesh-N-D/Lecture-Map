@@ -1,9 +1,9 @@
 import uuid
 import logging
 import os
-import shutil
 import tempfile
 from typing import List
+from fastapi.concurrency import run_in_threadpool
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc
@@ -14,14 +14,13 @@ from app.models.lecture import Lecture, LectureStatus
 from app.auth import get_current_user
 from app.schemas.lecture import LectureResponse, LectureStatusResponse, UploadResponse
 from app.config import settings
+from app.services.storage import StorageError, delete_file, save_file
 from app.tasks.pipeline import process_lecture, process_lecture_direct
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/lectures", tags=["lectures"])
 
 PROGRESS_MAP = {0: 0, 1: 10, 2: 30, 3: 60, 4: 80, 5: 100}
-LOCAL_UPLOAD_DIR = os.path.join(tempfile.gettempdir(), "lecturemap_uploads")
-MAX_UPLOAD_SIZE = 200 * 1024 * 1024
 
 
 def _queue_processing(lecture_id: str, background_tasks: BackgroundTasks) -> str:
@@ -48,6 +47,36 @@ def _queue_processing(lecture_id: str, background_tasks: BackgroundTasks) -> str
 
 # ── Upload file ───────────────────────────────────────────────────────────────
 
+ALLOWED_EXTENSIONS = {".mp3", ".mp4", ".wav", ".m4a", ".webm", ".ogg", ".pdf"}
+# Browsers are inconsistent about audio/video MIME types, so we accept any
+# audio/*, video/* type, plus the generic fallbacks, but reject clearly wrong
+# declarations such as text/html or image/png.
+GENERIC_MIME = {"application/octet-stream", "binary/octet-stream", ""}
+
+
+def _safe_title(title: str | None, filename: str) -> str:
+    base = (title or "").strip() or os.path.splitext(os.path.basename(filename))[0]
+    base = "".join(ch for ch in base if ch.isprintable()).strip()
+    return base[:200] or "Untitled lecture"
+
+
+def _validate_upload(filename: str | None, content_type: str | None) -> str:
+    if not filename:
+        raise HTTPException(400, "A file name is required")
+    suffix = os.path.splitext(os.path.basename(filename))[1].lower()
+    if suffix not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            400, f"File type '{suffix or 'unknown'}' not supported. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}"
+        )
+    mime = (content_type or "").split(";")[0].strip().lower()
+    if mime not in GENERIC_MIME:
+        expected_pdf = suffix == ".pdf"
+        ok = mime == "application/pdf" if expected_pdf else mime.startswith(("audio/", "video/")) or mime == "application/ogg"
+        if not ok:
+            raise HTTPException(415, f"Content type '{mime}' does not match a {suffix} file")
+    return suffix
+
+
 @router.post("/upload", response_model=UploadResponse)
 async def upload_lecture(
     background_tasks: BackgroundTasks,
@@ -56,13 +85,10 @@ async def upload_lecture(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    allowed = {".mp3", ".mp4", ".wav", ".m4a", ".webm", ".ogg", ".pdf"}
-    suffix = "." + file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
-    if suffix not in allowed:
-        raise HTTPException(400, f"File type '{suffix}' not supported. Allowed: {', '.join(allowed)}")
-
+    suffix = _validate_upload(file.filename, file.content_type)
+    max_bytes = settings.MAX_UPLOAD_MB * 1024 * 1024
     lecture_id = str(uuid.uuid4())
-    storage_path = f"{current_user.id}/{lecture_id}{suffix}"
+    key = f"{current_user.id}/{lecture_id}{suffix}"
     content_type = file.content_type or "application/octet-stream"
     temp_upload_path = None
 
@@ -70,33 +96,24 @@ async def upload_lecture(
         with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
             temp_upload_path = tmp.name
             total_size = 0
+            head = b""
             while chunk := await file.read(1024 * 1024):
+                if not head:
+                    head = chunk[:8]
                 total_size += len(chunk)
-                if total_size > MAX_UPLOAD_SIZE:
-                    raise HTTPException(413, "File too large. Maximum size is 200MB.")
+                if total_size > max_bytes:
+                    raise HTTPException(413, f"File too large. Maximum size is {settings.MAX_UPLOAD_MB}MB.")
                 tmp.write(chunk)
 
-        if settings.SUPABASE_URL and settings.SUPABASE_KEY:
-            try:
-                from supabase import create_client
-                client = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-                with open(temp_upload_path, "rb") as f_in:
-                    client.storage.from_(settings.SUPABASE_BUCKET).upload(
-                        path=storage_path,
-                        file=f_in,
-                        file_options={"content-type": content_type},
-                    )
-            except Exception as error:
-                logger.warning("Supabase upload failed; using local storage: %s", error)
-                os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
-                local_path = os.path.join(LOCAL_UPLOAD_DIR, f"{lecture_id}{suffix}")
-                shutil.copyfile(temp_upload_path, local_path)
-                storage_path = local_path
-        else:
-            os.makedirs(LOCAL_UPLOAD_DIR, exist_ok=True)
-            local_path = os.path.join(LOCAL_UPLOAD_DIR, f"{lecture_id}{suffix}")
-            shutil.copyfile(temp_upload_path, local_path)
-            storage_path = local_path
+        if total_size == 0:
+            raise HTTPException(400, "The uploaded file is empty")
+        if suffix == ".pdf" and not head.startswith(b"%PDF"):
+            raise HTTPException(400, "The uploaded file is not a valid PDF")
+
+        try:
+            storage_path = await run_in_threadpool(save_file, temp_upload_path, key, content_type)
+        except StorageError as error:
+            raise HTTPException(503, str(error))
     finally:
         if temp_upload_path:
             try:
@@ -107,14 +124,13 @@ async def upload_lecture(
     lecture = Lecture(
         id=lecture_id,
         user_id=current_user.id,
-        title=title or file.filename,
-        original_filename=file.filename,
+        title=_safe_title(title, file.filename),
+        original_filename=os.path.basename(file.filename)[:255],
         storage_path=storage_path,
         status=LectureStatus.PENDING,
     )
     db.add(lecture)
     await db.commit()
-    await db.refresh(lecture)
 
     task_id = _queue_processing(lecture_id, background_tasks)
     lecture.celery_task_id = task_id
@@ -167,22 +183,11 @@ async def get_lecture_status(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    result = await db.execute(select(Lecture).where(Lecture.id == lecture_id))
+    result = await db.execute(
+        select(Lecture).where(Lecture.id == lecture_id, Lecture.user_id == current_user.id)
+    )
     lecture = result.scalar_one_or_none()
     if not lecture:
-        logger.warning(
-            "Lecture status lookup failed: lecture_id=%s does not exist for user_id=%s",
-            lecture_id,
-            current_user.id,
-        )
-        raise HTTPException(404, "Lecture not found")
-    if lecture.user_id != current_user.id:
-        logger.warning(
-            "Lecture status lookup failed: lecture_id=%s belongs_to=%s requested_by=%s",
-            lecture_id,
-            lecture.user_id,
-            current_user.id,
-        )
         raise HTTPException(404, "Lecture not found")
 
     progress = PROGRESS_MAP.get(lecture.progress_step, 0)
@@ -194,6 +199,37 @@ async def get_lecture_status(
         celery_task_id=lecture.celery_task_id,
         error_message=lecture.error_message,
     )
+
+
+# ── Retry failed processing ───────────────────────────────────────────────────
+
+@router.post("/{lecture_id}/retry", response_model=UploadResponse)
+async def retry_lecture(
+    lecture_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(Lecture).where(Lecture.id == lecture_id, Lecture.user_id == current_user.id)
+    )
+    lecture = result.scalar_one_or_none()
+    if not lecture:
+        raise HTTPException(404, "Lecture not found")
+    if lecture.status != LectureStatus.FAILED:
+        raise HTTPException(409, "Only failed lectures can be retried")
+    if not lecture.storage_path:
+        raise HTTPException(409, "The original upload is no longer available; please upload it again")
+
+    lecture.status = LectureStatus.PENDING
+    lecture.progress_step = 0
+    lecture.error_message = None
+    await db.commit()
+
+    task_id = _queue_processing(lecture_id, background_tasks)
+    lecture.celery_task_id = task_id
+    await db.commit()
+    return UploadResponse(lecture_id=lecture_id, task_id=task_id, message="Processing restarted.")
 
 
 # ── Delete lecture ────────────────────────────────────────────────────────────
@@ -218,6 +254,8 @@ async def delete_lecture(
     except Exception as e:
         logger.error(f"Neo4j delete failed: {e}")
 
+    storage_ref = lecture.storage_path
     await db.delete(lecture)
     await db.commit()
+    await run_in_threadpool(delete_file, storage_ref)
     return {"message": "Lecture deleted"}

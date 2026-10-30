@@ -19,10 +19,13 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
-# Override URL from env
-db_url = os.getenv("DATABASE_URL", "").replace("+asyncpg", "")
-if db_url:
-    config.set_main_option("sqlalchemy.url", db_url)
+# Use the app's DATABASE_URL (async driver) converted to its sync equivalent,
+# e.g. sqlite+aiosqlite -> sqlite, postgresql+asyncpg -> postgresql.
+from app.config import settings
+from app.tasks.pipeline import _sync_database_url
+
+if os.getenv("DATABASE_URL"):
+    config.set_main_option("sqlalchemy.url", _sync_database_url(settings.DATABASE_URL).replace("%", "%%"))
 
 
 def run_migrations_offline():

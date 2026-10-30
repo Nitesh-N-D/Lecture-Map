@@ -65,4 +65,7 @@ async def init_db():
             await conn.execute(text("ALTER TABLE lectures ADD COLUMN graph_data TEXT"))
         if "visited_concept_ids" not in columns:
             await conn.execute(text("ALTER TABLE lectures ADD COLUMN visited_concept_ids TEXT"))
+        user_columns = await conn.run_sync(lambda sync_conn: {c["name"] for c in inspect(sync_conn).get_columns("users")})
+        if "token_version" not in user_columns:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0"))
     logger.info("Database tables created/verified")

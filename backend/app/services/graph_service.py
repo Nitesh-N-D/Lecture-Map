@@ -32,13 +32,14 @@ def scope_graph_data(lecture_id: str, graph_data: dict) -> dict:
     return {"concepts": scoped_concepts, "edges": scoped_edges}
 
 
-async def store_graph(lecture_id: str, graph_data: dict) -> tuple[int, int]:
+async def store_graph(lecture_id: str, graph_data: dict, client=None) -> tuple[int, int]:
     """Store concepts and edges in Neo4j. Returns (node_count, edge_count)."""
+    client = client or neo4j_client
     concepts = graph_data.get("concepts", [])
     edges = graph_data.get("edges", [])
 
     for concept in concepts:
-        await neo4j_client.create_concept_node(
+        await client.create_concept_node(
             lecture_id=lecture_id,
             concept_id=concept["id"],
             name=concept["name"],
@@ -48,7 +49,7 @@ async def store_graph(lecture_id: str, graph_data: dict) -> tuple[int, int]:
         )
 
     for edge in edges:
-        await neo4j_client.create_dependency_edge(
+        await client.create_dependency_edge(
             from_id=edge["from"],
             to_id=edge["to"],
             lecture_id=lecture_id,

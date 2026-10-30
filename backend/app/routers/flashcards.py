@@ -3,7 +3,7 @@ from datetime import datetime, date, timedelta
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, update
 
 from app.database import get_db
 from app.models.user import User
@@ -14,7 +14,15 @@ from app.schemas.flashcard import FlashcardResponse, ReviewRequest, ReviewRespon
 from app.services.srs_service import sm2_update
 
 logger = logging.getLogger(__name__)
+def _utc_today() -> date:
+    """Review timestamps are stored as naive UTC, so day boundaries are UTC days."""
+    return datetime.utcnow().date()
+
+
 router = APIRouter(tags=["flashcards"])
+
+# Rejects accidental double submissions (double click / key repeat).
+MIN_REVIEW_GAP_SECONDS = 2
 
 
 @router.get("/lectures/{lecture_id}/flashcards", response_model=List[FlashcardResponse])
@@ -73,26 +81,30 @@ async def review_card(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    # Verify ownership through lecture
+    # Ownership is enforced in the query itself; foreign cards look like missing cards.
     result = await db.execute(
-        select(Flashcard).where(Flashcard.id == card_id)
+        select(Flashcard)
+        .join(Lecture, Lecture.id == Flashcard.lecture_id)
+        .where(Flashcard.id == card_id, Lecture.user_id == current_user.id)
     )
     card = result.scalar_one_or_none()
     if not card:
         raise HTTPException(404, "Flashcard not found")
 
-    # Check lecture ownership
-    lecture_result = await db.execute(
-        select(Lecture).where(Lecture.id == card.lecture_id, Lecture.user_id == current_user.id)
-    )
-    if not lecture_result.scalar_one_or_none():
-        raise HTTPException(403, "Not authorized")
+    now = datetime.utcnow()
+    if card.last_reviewed_at and (now - card.last_reviewed_at).total_seconds() < MIN_REVIEW_GAP_SECONDS:
+        raise HTTPException(409, "This card was just reviewed")
 
-    # Apply SM-2
     updates = sm2_update(card, body.quality)
-    for field, value in updates.items():
-        setattr(card, field, value)
-
+    # Optimistic lock: only apply if nobody reviewed the card since we read it.
+    rows = await db.execute(
+        update(Flashcard)
+        .where(Flashcard.id == card_id, Flashcard.total_reviews == card.total_reviews)
+        .values(**updates)
+    )
+    if rows.rowcount != 1:
+        await db.rollback()
+        raise HTTPException(409, "This card was just reviewed")
     await db.commit()
     await db.refresh(card)
 
@@ -109,7 +121,7 @@ async def get_review_stats(
     db: AsyncSession = Depends(get_db),
 ):
     now = datetime.utcnow()
-    today_start = datetime.combine(date.today(), datetime.min.time())
+    today_start = datetime.combine(_utc_today(), datetime.min.time())
 
     # Get all lecture IDs
     lectures_result = await db.execute(
@@ -154,7 +166,7 @@ async def get_review_stats(
     # Upcoming due (next 7 days)
     upcoming = {}
     for i in range(1, 8):
-        day = date.today() + timedelta(days=i)
+        day = _utc_today() + timedelta(days=i)
         day_start = datetime.combine(day, datetime.min.time())
         day_end = datetime.combine(day + timedelta(days=1), datetime.min.time())
         count_result = await db.execute(
@@ -192,7 +204,7 @@ async def _compute_streak(db: AsyncSession, lecture_ids: list) -> int:
 
     # Pull distinct review dates in descending order, capped at a
     # reasonable lookback window to keep the query cheap.
-    lookback_start = datetime.combine(date.today() - timedelta(days=365), datetime.min.time())
+    lookback_start = datetime.combine(_utc_today() - timedelta(days=365), datetime.min.time())
     result = await db.execute(
         select(func.date(Flashcard.last_reviewed_at).label("review_date"))
         .where(
@@ -216,7 +228,7 @@ async def _compute_streak(db: AsyncSession, lecture_ids: list) -> int:
     if not review_dates:
         return 0
 
-    today = date.today()
+    today = _utc_today()
     streak = 0
     cursor = today
 

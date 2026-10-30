@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Boolean, Enum as SAEnum
+from sqlalchemy import Column, String, DateTime, Boolean, Enum as SAEnum, Integer
 from sqlalchemy.orm import relationship
 from app.database import Base
 import enum
@@ -31,6 +31,8 @@ class User(Base):
     )
     is_guest = Column(Boolean, default=False, nullable=False)
     is_active = Column(Boolean, default=True, nullable=False)
+    # Bumped on logout / security events; tokens carrying an older value are rejected.
+    token_version = Column(Integer, default=0, nullable=False, server_default="0")
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

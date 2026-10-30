@@ -1,7 +1,7 @@
 """store a portable graph snapshot for installations without Neo4j
 
 Revision ID: 002_portable_graph_snapshot
-Revises: 001_initial_schema
+Revises: 001
 Create Date: 2026-08-23
 """
 
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 revision = "002_portable_graph_snapshot"
-down_revision = "001_initial_schema"
+down_revision = "001"
 branch_labels = None
 depends_on = None
 

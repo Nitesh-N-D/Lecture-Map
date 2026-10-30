@@ -25,10 +25,10 @@ def upgrade() -> None:
         sa.Column('avatar_url', sa.String(), nullable=True),
         sa.Column('google_id', sa.String(), nullable=True),
         sa.Column('role', sa.Enum('user', 'guest', 'admin', name='userrole'), nullable=False, server_default='user'),
-        sa.Column('is_guest', sa.Boolean(), nullable=False, server_default='false'),
-        sa.Column('is_active', sa.Boolean(), nullable=False, server_default='true'),
-        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
-        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
+        sa.Column('is_guest', sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column('is_active', sa.Boolean(), nullable=False, server_default=sa.true()),
+        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.PrimaryKeyConstraint('id'),
     )
     op.create_index('ix_users_email', 'users', ['email'], unique=True)
@@ -51,8 +51,8 @@ def upgrade() -> None:
         sa.Column('concept_count', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('edge_count', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('flashcard_count', sa.Integer(), nullable=False, server_default='0'),
-        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
-        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
+        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
     )
@@ -70,11 +70,11 @@ def upgrade() -> None:
         sa.Column('easiness_factor', sa.Float(), nullable=False, server_default='2.5'),
         sa.Column('interval_days', sa.Integer(), nullable=False, server_default='1'),
         sa.Column('repetitions', sa.Integer(), nullable=False, server_default='0'),
-        sa.Column('next_review_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
+        sa.Column('next_review_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column('last_reviewed_at', sa.DateTime(), nullable=True),
         sa.Column('total_reviews', sa.Integer(), nullable=False, server_default='0'),
-        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
-        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
+        sa.Column('created_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
+        sa.Column('updated_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.ForeignKeyConstraint(['lecture_id'], ['lectures.id'], ondelete='CASCADE'),
         sa.PrimaryKeyConstraint('id'),
     )
@@ -91,7 +91,7 @@ def upgrade() -> None:
         sa.Column('cards_correct', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('total_time_seconds', sa.Integer(), nullable=False, server_default='0'),
         sa.Column('average_quality', sa.Float(), nullable=True),
-        sa.Column('started_at', sa.DateTime(), nullable=False, server_default=sa.text('now()')),
+        sa.Column('started_at', sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column('ended_at', sa.DateTime(), nullable=True),
         sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
         sa.ForeignKeyConstraint(['lecture_id'], ['lectures.id'], ondelete='CASCADE'),
@@ -106,5 +106,6 @@ def downgrade() -> None:
     op.drop_table('flashcards')
     op.drop_table('lectures')
     op.drop_table('users')
-    op.execute("DROP TYPE IF EXISTS lecturestatus")
-    op.execute("DROP TYPE IF EXISTS userrole")
+    if op.get_bind().dialect.name == "postgresql":  # enum types only exist on Postgres
+        op.execute("DROP TYPE IF EXISTS lecturestatus")
+        op.execute("DROP TYPE IF EXISTS userrole")

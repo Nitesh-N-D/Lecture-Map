@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -26,18 +26,20 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
 
 
-def create_access_token(user_id: str, is_guest: bool = False) -> str:
+def create_access_token(user_id: str, is_guest: bool = False, token_version: int = 0) -> str:
     expire_minutes = (
         settings.GUEST_TOKEN_EXPIRE_MINUTES
         if is_guest
         else settings.ACCESS_TOKEN_EXPIRE_MINUTES
     )
-    expire = datetime.utcnow() + timedelta(minutes=expire_minutes)
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(minutes=expire_minutes)
     payload = {
         "sub": user_id,
         "exp": expire,
-        "iat": datetime.utcnow(),
+        "iat": now,
         "is_guest": is_guest,
+        "tv": token_version,
     }
     return jwt.encode(payload, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
 
@@ -78,6 +80,8 @@ async def get_current_user(
 
     if not user or not user.is_active:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
+    if payload.get("tv", 0) != (user.token_version or 0):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Session is no longer valid")
 
     return user
 
