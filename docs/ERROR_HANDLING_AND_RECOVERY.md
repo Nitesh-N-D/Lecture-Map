@@ -3,7 +3,7 @@
 ## API
 
 - Every response carries `X-Request-ID` (a client-supplied id is echoed only if it is 8 to 64 safe characters, otherwise a new one is generated).
-- Expected errors use FastAPI's `{"detail": "..."}`. Middleware errors (413, 429) and unhandled exceptions add `request_id`.
+- Every error response (HTTP errors, 422 validation, middleware 413/429, unhandled 500) has the same shape: FastAPI's `detail` plus `request_id`, which matches the `X-Request-ID` header.
 - Unhandled exceptions return HTTP 500 with a generic message and the `request_id`; the stack trace is only in server logs.
 - 429 responses include `Retry-After`.
 

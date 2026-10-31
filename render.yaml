@@ -63,6 +63,12 @@ services:
         value: production
       - key: USE_CELERY
         value: "false"
+      # Optional, add by hand in the dashboard (not declared here so a Blueprint sync
+      # never changes a live service on its own):
+      #   KEY_ENCRYPTION_SECRET  32+ random chars; encrypts users' saved Gemini keys.
+      #                          Falls back to JWT_SECRET. Set it before users save keys:
+      #                          changing it later makes saved keys unreadable (users re-enter them).
+      #   NEO4J_DATABASE         AuraDB database name if not the default.
 
   # ── Celery background worker (DISABLED — needs a paid plan) ─────────
   # Render's free plan only covers web services; the "worker" service

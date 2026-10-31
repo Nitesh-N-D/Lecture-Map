@@ -38,3 +38,17 @@ Uncommitted working-tree changes. Earlier work (uploads, storage, pipeline, grap
 - `backend/scripts/live_integration_check.py`: PASS/FAIL live smoke checks (Gemini, Postgres read-only, Supabase, Neo4j, Redis).
 - Frontend: design tokens, focus-visible styles, reduced motion, skip link, darker tertiary text, `ConceptList` tab, tab and dialog ARIA, keyboard-operable upload zone, "Retry processing" button.
 - Playwright e2e suite (`frontend/e2e`, `npm run e2e`) with axe checks. Unit tests for the concept list and Gemini messages.
+
+## 2026-10-31 - Forest Intelligence foundation (in progress)
+- Done: dark/light theme tokens, no-flash theme script, theme toggle, shared Modal (fixes clipped auth dialog), AuthModal redesign, forest-only graph/chart colours, off-palette colour audit.
+- Verified: build, 22 unit tests, 20 Playwright e2e tests pass; axe (A/AA) clean on landing, privacy, 404 and auth dialog in both themes.
+- Remaining: landing recomposition, Aha Path, dashboard data panels, lecture workspace, settings theme control, CommandPalette on Modal, favicon/og-image colours, full responsive screenshot sweep of authenticated pages, backend/Google/SEO items from the brief.
+
+## 2026-10-31 — Forest Intelligence: landing recomposition, logged-in QA, favicons
+
+- Landing: added "How it works" (Upload / Build / Study), an illustrative concept graph, an Aha Path and spaced-repetition explainer, and a privacy line (download data, delete account). Graph is labelled illustration-only.
+- Favicons, apple-touch icon, maskable icon, `favicon.svg`, `og-image.png` regenerated in the forest palette; `site.webmanifest` colours updated (`#f3f8f1` / `#1d4937`).
+- Responsive: lecture header actions wrap instead of overflowing at 390px; viewport heights use `dvh`; new bottom tab bar (`MobileNav`) below `lg` so Knowledge Map, Review and Settings are reachable on phones/tablets; Settings added to the sidebar.
+- Accessibility fixes found by axe on logged-in pages: unnamed logo link ("LectureMap home"), locked-badge contrast (dashed border instead of `opacity-40`), focusable Insights scroll region.
+- Toasts use theme tokens.
+- QA: `e2e/screenshots.spec.js` (run with `SHOTS=1`) captures every logged-in page in both themes at 7 viewports with an axe + sideways-overflow check. Screenshots live in the git-ignored `frontend/.cache/shots/`.

@@ -62,7 +62,9 @@ Copy backend/.env.example to backend/.env. The important settings are:
     JWT_SECRET=replace-with-a-long-random-production-secret
     FRONTEND_URL=http://localhost:5173
 
-Do not expose Supabase, Gemini, Neo4j, or JWT secrets in the frontend. The frontend only needs VITE_API_URL.
+Do not expose Supabase, Gemini, Neo4j, or JWT secrets in the frontend. The frontend only needs VITE_API_URL (and optionally VITE_SITE_URL).
+
+`SUPABASE_KEY` must be the server-side **secret** key (`sb_secret_...`, or the legacy `service_role` JWT). A publishable/anon key is detected and refused with a clear error, and in production uploads never fall back silently to local disk; `/health` reports `storage_ok`. Users can also save their own Gemini key in Settings; it is encrypted at rest with `KEY_ENCRYPTION_SECRET` (falls back to `JWT_SECRET`).
 
 ## Processing flow
 
@@ -95,7 +97,13 @@ A valid file works locally without Gemini or Neo4j: LectureMap builds an extract
 | POST | /lectures/upload | Upload supported audio, video, or PDF files |
 | GET | /lectures/{id}/status | Read progress or failure reason |
 | GET | /lectures/{id}/graph | Read the concept graph |
+| GET | /lectures/{id}/study-path?target= | Prerequisite-ordered path to a concept |
+| POST | /concepts/{id}/visit | Mark a concept studied (DELETE to undo) |
+| GET | /progress/summary | Concept totals: completed, mastered, pending, per lecture |
 | GET | /review/due | Read due flashcards |
+| POST | /review/{card_id} | Submit an SM-2 review (logged for streaks and history) |
+| GET | /review/stats | Due today, reviewed today, streak |
+| GET | /review/history | Reviews per day for the activity heatmap |
 | GET | /export/anki/{id} | Download Anki deck |
 | GET | /export/pdf/{id} | Download a PDF export |
 
@@ -112,17 +120,19 @@ One backend `.env` can serve both. `FRONTEND_URL` and `BACKEND_URL` accept comma
     cd ..\frontend
     npm test
     npm run build
+    # Browsers live in frontend/.playwright-browsers (git-ignored):
+    #   PowerShell: $env:PLAYWRIGHT_BROWSERS_PATH="$PWD\.playwright-browsers"
     npx playwright install chromium   # once
-    npm run e2e
+    npm run e2e                       # desktop, mobile (Pixel 7) and tablet projects
 
-    cd ..ackend
+    cd ..\backend
     python scripts/live_integration_check.py   # optional, uses backend/.env
 
 Current results and what is not yet verified (live Google, Gemini, Whisper, Postgres, browser e2e) are in `docs/TESTING_AND_VERIFICATION_REPORT.md`. Security, privacy, SEO and error-handling notes are in `docs/`.
 
 ## Deployment
 
-Deploy the frontend as a Vite project with frontend/vercel.json. Deploy the FastAPI backend on a persistent Python host. Configure all backend variables there, set FRONTEND_URL to the deployed frontend URL, and set VITE_API_URL to the backend URL.
+Frontend: Vercel, Vite preset, root `frontend/` (`frontend/vercel.json` adds the SPA rewrite and security headers). Backend: Render via `render.yaml` (Docker, free plan, `USE_CELERY=false`, health check `/health`). This release adds `users.gemini_api_key_enc` and the `review_logs` table. Startup creates them automatically (additive only), and migrations `004`/`005` are idempotent, so `alembic upgrade head` is safe before or after the first boot. Back up the database first. Variables and steps: `docs/PRODUCTION_DEPLOYMENT_CHECKLIST.md`.
 
 ## Privacy
 

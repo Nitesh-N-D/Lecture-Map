@@ -2,7 +2,12 @@
 **/.env
 **/.env.local
 **/.env.*.local
+**/.env.*
 !**/.env.example
+*.pem
+*.key
+credentials.json
+service-account*.json
 
 venv
 
@@ -14,6 +19,10 @@ backend/**/__pycache__/
 *.egg-info/
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage/
 backend/venv/
 backend/.venv/
 
@@ -38,6 +47,7 @@ Thumbs.db
 /tmp/
 
 .claude/
+.serena/
 CLAUDE.md
 # Uploaded lecture files and local databases
 backend/uploads/
@@ -49,6 +59,7 @@ uploads/
 frontend/.playwright-browsers/
 frontend/test-results/
 frontend/playwright-report/
+frontend/.cache/
 
 backend/e2e-scratch.db*
 backend/e2e-uploads/
