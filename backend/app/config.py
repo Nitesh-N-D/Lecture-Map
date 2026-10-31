@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # AI
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-3-flash-preview"
+    GEMINI_MAX_ATTEMPTS: int = 4
+    GEMINI_RETRY_BASE_SECONDS: float = 1.0
+    GEMINI_RETRY_MAX_SECONDS: float = 8.0
 
     # Auth
     GOOGLE_CLIENT_ID: str = ""

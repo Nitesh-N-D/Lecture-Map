@@ -16,6 +16,8 @@ export default function ProcessingStatus({ lectureId, onComplete, onStatusChange
   const [status, setStatus] = useState(null)
   const [elapsed, setElapsed] = useState(0)
   const [pollError, setPollError] = useState('')
+  const [pollingEnabled, setPollingEnabled] = useState(true)
+  const [retrying, setRetrying] = useState(false)
   const intervalRef = useRef(null)
   const elapsedRef = useRef(null)
   const onCompleteRef = useRef(onComplete)
@@ -31,7 +33,7 @@ export default function ProcessingStatus({ lectureId, onComplete, onStatusChange
   }, [onStatusChange])
 
   useEffect(() => {
-    if (!lectureId) return
+    if (!lectureId || !pollingEnabled) return
 
     const poll = async () => {
       try {
@@ -43,12 +45,14 @@ export default function ProcessingStatus({ lectureId, onComplete, onStatusChange
         if (data.status === 'COMPLETED') {
           clearInterval(intervalRef.current)
           clearInterval(elapsedRef.current)
+          setPollingEnabled(false)
           toast.success('Knowledge graph ready')
           onCompleteRef.current?.()
           setTimeout(() => navigate(`/lectures/${lectureId}`), 800)
         } else if (data.status === 'FAILED') {
           clearInterval(intervalRef.current)
           clearInterval(elapsedRef.current)
+          setPollingEnabled(false)
           toast.error(data.error_message || 'Processing failed')
         }
       } catch (e) {
@@ -76,7 +80,21 @@ export default function ProcessingStatus({ lectureId, onComplete, onStatusChange
       clearInterval(intervalRef.current)
       clearInterval(elapsedRef.current)
     }
-  }, [lectureId, navigate])
+  }, [lectureId, navigate, pollingEnabled])
+
+  const retryFlashcards = async () => {
+    setRetrying(true)
+    try {
+      await api.retryFlashcards(lectureId)
+      setStatus((current) => ({ ...current, status: 'PENDING', error_message: null }))
+      setPollingEnabled(true)
+      toast.success('Missing flashcards queued')
+    } catch (error) {
+      toast.error(error.response?.data?.detail || 'Could not retry flashcards')
+    } finally {
+      setRetrying(false)
+    }
+  }
 
   const currentStep = status?.progress_step || 0
   const percent = status?.progress_percent || 0
@@ -84,7 +102,7 @@ export default function ProcessingStatus({ lectureId, onComplete, onStatusChange
   return (
     <div className="card p-6 w-full max-w-md shadow-lift">
       <div className="flex items-center justify-between mb-5">
-        <h3 className="font-display text-lg font-semibold text-primary">Processing lecture...</h3>
+        <h3 className="font-display text-lg font-semibold text-primary">{status?.status === 'FAILED' && status.flashcards_retryable ? 'Flashcard generation paused' : 'Processing lecture...'}</h3>
         <span className="text-sm text-tertiary font-mono">{formatElapsed(elapsed)}</span>
       </div>
 
@@ -97,9 +115,12 @@ export default function ProcessingStatus({ lectureId, onComplete, onStatusChange
 
       <div className="flex flex-col gap-3">
         {STEPS.map(({ step, label }) => {
-          const done = currentStep > step
-          const active = currentStep === step
+          const done = currentStep > step || (status?.status === 'COMPLETED' && step === 5)
+          const active = ['PENDING', 'PROCESSING'].includes(status?.status) && currentStep === step
           const pending = currentStep < step
+          const stepLabel = step === 5 && status?.status === 'FAILED' && status.flashcards_retryable
+            ? status.error_code === 'quota_exhausted' ? 'Waiting for Gemini quota reset' : 'Flashcards partially generated'
+            : label
 
           return (
             <div key={step} className={`flex items-center gap-3 ${pending ? 'opacity-45' : ''}`}>
@@ -115,7 +136,7 @@ export default function ProcessingStatus({ lectureId, onComplete, onStatusChange
                 ) : step}
               </div>
               <span className={`text-sm ${active ? 'text-primary font-medium' : 'text-secondary'}`}>
-                {label}
+                {stepLabel}
                 {active && <span className="text-tertiary text-xs ml-2">in progress...</span>}
                 {done && <span className="text-brand-700 text-xs ml-2">done</span>}
               </span>
@@ -130,12 +151,15 @@ export default function ProcessingStatus({ lectureId, onComplete, onStatusChange
         </div>
       )}
 
-      {status?.status === 'FAILED' && (
+        {status?.status === 'FAILED' && (
         <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
-          {status.error_message || 'Processing failed. Please try again.'}
-          {/Settings/.test(status.error_message || '') && (
-            <> <Link to="/settings#gemini-key" className="font-semibold underline">Add your Gemini key</Link></>
-          )}
+          <p>{(status.error_message || 'Processing failed. Please try again.').replace(/^\[(?:GEMINI|FLASHCARD):[^\]]+\]\s*/, '')}</p>
+          {status.flashcards_retryable && <p className="mt-1">Your lecture content and saved flashcards are preserved. {status.flashcards_remaining ? `${status.flashcards_remaining} concept batch(es) remain.` : ''} Retry later or configure another key.</p>}
+          <div className="mt-3 flex flex-wrap gap-3">
+            {status.flashcards_retryable && <button type="button" className="font-semibold underline" onClick={retryFlashcards} disabled={retrying}>{retrying ? 'Queueing...' : 'Retry flashcard generation'}</button>}
+            <Link to="/settings#gemini-key" className="font-semibold underline">Configure or update Gemini key</Link>
+            <Link to={`/lectures/${lectureId}`} className="font-semibold underline">Return to lecture</Link>
+          </div>
         </div>
       )}
     </div>

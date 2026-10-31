@@ -32,6 +32,9 @@ class LectureStatusResponse(BaseModel):
     progress_percent: float
     celery_task_id: Optional[str] = None
     error_message: Optional[str] = None
+    error_code: Optional[str] = None
+    flashcards_retryable: bool = False
+    flashcards_remaining: int = 0
 
 
 class UploadResponse(BaseModel):

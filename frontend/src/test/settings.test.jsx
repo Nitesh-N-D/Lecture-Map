@@ -50,6 +50,18 @@ describe('Settings page', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Google rejected this key.')
   })
 
+  it('tests a candidate Gemini key without saving or showing it', async () => {
+    vi.spyOn(api, 'getGeminiKey').mockResolvedValue({ data: { configured: false } })
+    const testKey = vi.spyOn(api, 'testGeminiKey').mockResolvedValue({ data: { valid: true, message: 'Gemini API key is working.' } })
+    const save = vi.spyOn(api, 'saveGeminiKey')
+    mount({ id: 'u', email: 'a@b.c', has_password: true })
+    await userEvent.type(screen.getByLabelText('Gemini API key'), 'AIza-test-key-0000000000wxyz')
+    await userEvent.click(screen.getByRole('button', { name: 'Test key' }))
+    expect(testKey).toHaveBeenCalledWith('AIza-test-key-0000000000wxyz')
+    expect(await screen.findByText('Gemini API key is working.')).toBeVisible()
+    expect(save).not.toHaveBeenCalled()
+  })
+
   it('persists the chosen theme', async () => {
     vi.spyOn(api, 'getGeminiKey').mockResolvedValue({ data: { configured: false } })
     mount({ id: 'u', email: 'a@b.c', has_password: true })

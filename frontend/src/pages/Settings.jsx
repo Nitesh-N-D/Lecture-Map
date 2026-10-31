@@ -17,8 +17,8 @@ const KEY_STEPS = [
   <>Open <a className="font-semibold underline underline-offset-2" href="https://aistudio.google.com/apikey" target="_blank" rel="noopener noreferrer">Google AI Studio, API keys</a> and sign in with a Google account.</>,
   <>Choose <strong>Create API key</strong>. If asked, pick a project or let Google create one for you. The free tier needs no credit card.</>,
   <>Copy the key. It is a single line of letters and numbers, usually starting with <span className="font-mono">AIza</span>.</>,
-  <>Paste it below and choose <strong>Save key</strong>. We check it with Google before saving.</>,
-  <>Open a lecture that failed and choose <strong>Retry processing</strong>, or upload again.</>,
+  <>Paste it below and choose <strong>Save key</strong>. You can also test a key before saving it.</>,
+  <>Return to a lecture paused during flashcard generation and choose <strong>Retry flashcards</strong>.</>,
 ]
 
 export default function Settings() {
@@ -34,6 +34,7 @@ export default function Settings() {
   const [keyInput, setKeyInput] = useState('')
   const [keyBusy, setKeyBusy] = useState(false)
   const [keyError, setKeyError] = useState('')
+  const [keyTestMessage, setKeyTestMessage] = useState('')
 
   useEffect(() => {
     if (window.location.hash === '#gemini-key') document.getElementById('gemini-key')?.scrollIntoView()
@@ -46,6 +47,7 @@ export default function Settings() {
   const saveKey = async (event) => {
     event.preventDefault()
     setKeyError('')
+    setKeyTestMessage('')
     setKeyBusy(true)
     try {
       const { data } = await api.saveGeminiKey(keyInput.trim())
@@ -54,6 +56,20 @@ export default function Settings() {
       toast.success('Your Gemini key was saved.')
     } catch (err) {
       setKeyError(errorMessage(err, 'Could not save the key.'))
+    } finally {
+      setKeyBusy(false)
+    }
+  }
+
+  const testKey = async () => {
+    setKeyError('')
+    setKeyTestMessage('')
+    setKeyBusy(true)
+    try {
+      const { data } = await api.testGeminiKey(keyInput.trim() || undefined)
+      setKeyTestMessage(data.message)
+    } catch (err) {
+      setKeyError(errorMessage(err, 'Could not test the key.'))
     } finally {
       setKeyBusy(false)
     }
@@ -151,9 +167,11 @@ export default function Settings() {
         </ol>
         {keyStatus?.configured && (
           <p className="mt-4 text-sm font-semibold text-brand-800" role="status">
-            A key ending in <span className="font-mono">{keyStatus.last4}</span> is saved.
+            {keyStatus.last4 ? <>A key ending in <span className="font-mono">{keyStatus.last4}</span> is saved.</> : 'A Gemini key is saved.'}
           </p>
         )}
+        {keyStatus?.needs_replacement && <p role="alert" className="mt-3 text-sm text-amber-800">The saved key cannot be decrypted with the current server encryption secret. Replace it below.</p>}
+        {!keyStatus?.configured && <p className="mt-4 text-sm text-secondary" role="status">Personal Gemini key: Not configured.</p>}
         <form className="mt-4 space-y-3" onSubmit={saveKey} autoComplete="off">
           <div>
             <label htmlFor="gemini-key-input" className="block text-sm font-medium">Gemini API key</label>
@@ -169,8 +187,10 @@ export default function Settings() {
             />
           </div>
           {keyError && <p role="alert" className="text-sm text-red-700">{keyError}</p>}
+          {keyTestMessage && <p role="status" className="text-sm text-emerald-700">{keyTestMessage}</p>}
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={keyBusy || keyInput.trim().length < 20}>{keyBusy ? 'Checking...' : 'Save key'}</Button>
+            <Button type="submit" disabled={keyBusy || keyInput.trim().length < 20}>{keyBusy ? 'Checking...' : keyStatus?.configured ? 'Update key' : 'Save key'}</Button>
+            <Button type="button" variant="outline" onClick={testKey} disabled={keyBusy || (!keyInput.trim() && !keyStatus?.configured)}>{keyBusy ? 'Checking...' : 'Test key'}</Button>
             {keyStatus?.configured && (
               <Button type="button" variant="outline" onClick={removeKey} disabled={keyBusy}>Remove key</Button>
             )}

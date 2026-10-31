@@ -2,25 +2,46 @@ import uuid
 import logging
 import os
 import tempfile
+import hashlib
+import json
+import re
 from typing import List
 from fastapi.concurrency import run_in_threadpool
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, update
 
 from app.database import get_db
 from app.models.user import User
 from app.models.lecture import Lecture, LectureStatus
+from app.models.flashcard import Flashcard
 from app.auth import get_current_user
 from app.schemas.lecture import LectureResponse, LectureStatusResponse, UploadResponse
 from app.config import settings
 from app.services.storage import StorageError, delete_file, save_file
-from app.tasks.pipeline import process_lecture, process_lecture_direct
+from app.tasks.pipeline import process_lecture, process_lecture_direct, process_flashcards, process_flashcards_direct
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/lectures", tags=["lectures"])
 
-PROGRESS_MAP = {0: 0, 1: 10, 2: 30, 3: 60, 4: 80, 5: 100}
+PROGRESS_MAP = {0: 0, 1: 10, 2: 30, 3: 60, 4: 80, 5: 95}
+
+
+def _check_gemini_retry_key(lecture: Lecture, user: User) -> None:
+    match = re.match(r"\[GEMINI:([^]]+)\]", lecture.error_message or "")
+    code = match.group(1) if match else ""
+    if code not in {"invalid_api_key", "authentication_failed", "api_key_required"}:
+        return
+    from app.services.secret_box import decrypt_user_secret
+    try:
+        selected_key = decrypt_user_secret(user.gemini_api_key_enc) if user.gemini_api_key_enc else settings.GEMINI_API_KEY
+    except RuntimeError as error:
+        raise HTTPException(409, str(error)) from None
+    if not selected_key:
+        raise HTTPException(409, "Configure a Gemini API key in Settings before retrying.")
+    if code != "api_key_required" and lecture.failure_key_digest:
+        if hashlib.sha256(selected_key.encode()).hexdigest() == lecture.failure_key_digest:
+            raise HTTPException(409, "Update your Gemini API key in Settings before retrying this authentication failure.")
 
 
 def _queue_processing(lecture_id: str, background_tasks: BackgroundTasks) -> str:
@@ -36,15 +57,29 @@ def _queue_processing(lecture_id: str, background_tasks: BackgroundTasks) -> str
         inspector = process_lecture.app.control.inspect(timeout=1.0)
         if not inspector.ping():
             raise RuntimeError("No Celery worker responded to ping")
-        task = process_lecture.delay(lecture_id)
-        return task.id
-    except Exception as e:
+        return process_lecture.delay(lecture_id).id
+    except Exception as error:
         task_id = f"local-{uuid.uuid4()}"
-        logger.warning("Celery unavailable; using FastAPI background task %s: %s", task_id, type(e).__name__)
+        logger.warning("Celery unavailable; using FastAPI background task %s (%s)", task_id, type(error).__name__)
         background_tasks.add_task(process_lecture_direct, lecture_id)
         return task_id
 
 
+def _queue_flashcard_retry(lecture_id: str, background_tasks: BackgroundTasks) -> str:
+    if not settings.USE_CELERY:
+        task_id = f"bg-{uuid.uuid4()}"
+        background_tasks.add_task(process_flashcards_direct, lecture_id)
+        return task_id
+    try:
+        inspector = process_flashcards.app.control.inspect(timeout=1.0)
+        if not inspector.ping():
+            raise RuntimeError("No Celery worker responded to ping")
+        return process_flashcards.delay(lecture_id).id
+    except Exception as error:
+        logger.warning("Celery flashcard retry unavailable; using in-process task (%s)", type(error).__name__)
+        task_id = f"local-{uuid.uuid4()}"
+        background_tasks.add_task(process_flashcards_direct, lecture_id)
+        return task_id
 # ── Upload file ───────────────────────────────────────────────────────────────
 
 ALLOWED_EXTENSIONS = {".mp3", ".mp4", ".wav", ".m4a", ".webm", ".ogg", ".pdf"}
@@ -197,6 +232,22 @@ async def get_lecture_status(
         raise HTTPException(404, "Lecture not found")
 
     progress = PROGRESS_MAP.get(lecture.progress_step, 0)
+    if lecture.status == LectureStatus.COMPLETED:
+        progress = 100
+    error_code = None
+    match = re.match(r"\[(?:GEMINI|FLASHCARD):([^]]+)\]", lecture.error_message or "")
+    if match:
+        error_code = match.group(1)
+    flashcards_remaining = 0
+    if lecture.graph_data:
+        try:
+            concept_count = len(json.loads(lecture.graph_data).get("concepts", []))
+            done_result = await db.execute(select(Flashcard.concept_id).where(
+                Flashcard.lecture_id == lecture_id,
+            ).distinct())
+            flashcards_remaining = max(0, concept_count - len(done_result.scalars().all()))
+        except (AttributeError, TypeError, ValueError):
+            flashcards_remaining = 0
     return LectureStatusResponse(
         lecture_id=lecture_id,
         status=lecture.status,
@@ -204,6 +255,10 @@ async def get_lecture_status(
         progress_percent=float(progress),
         celery_task_id=lecture.celery_task_id,
         error_message=lecture.error_message,
+        error_code=error_code,
+        flashcards_retryable=bool(lecture.status == LectureStatus.FAILED and lecture.progress_step == 5
+                                  and lecture.transcript and lecture.graph_data),
+        flashcards_remaining=flashcards_remaining,
     )
 
 
@@ -226,16 +281,55 @@ async def retry_lecture(
         raise HTTPException(409, "Only failed lectures can be retried")
     if not lecture.storage_path:
         raise HTTPException(409, "The original upload is no longer available; please upload it again")
+    _check_gemini_retry_key(lecture, current_user)
 
-    lecture.status = LectureStatus.PENDING
-    lecture.progress_step = 0
-    lecture.error_message = None
+    claimed = await db.execute(update(Lecture).where(
+        Lecture.id == lecture_id, Lecture.user_id == current_user.id,
+        Lecture.status == LectureStatus.FAILED,
+    ).values(status=LectureStatus.PENDING, progress_step=0, error_message=None, failure_key_digest=None))
+    if claimed.rowcount != 1:
+        await db.rollback()
+        raise HTTPException(409, "Lecture processing is already queued or running.")
     await db.commit()
 
     task_id = _queue_processing(lecture_id, background_tasks)
     lecture.celery_task_id = task_id
     await db.commit()
     return UploadResponse(lecture_id=lecture_id, task_id=task_id, message="Processing restarted.")
+
+
+@router.post("/{lecture_id}/retry-flashcards", response_model=UploadResponse)
+async def retry_flashcards(
+    lecture_id: str,
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Resume only missing flashcard batches from the saved transcript and graph."""
+    result = await db.execute(select(Lecture).where(
+        Lecture.id == lecture_id, Lecture.user_id == current_user.id,
+    ))
+    lecture = result.scalar_one_or_none()
+    if not lecture:
+        raise HTTPException(404, "Lecture not found")
+    if lecture.status != LectureStatus.FAILED or lecture.progress_step != 5 or not lecture.graph_data or not lecture.transcript:
+        raise HTTPException(409, "This lecture has no saved concept graph to resume. Retry full processing instead.")
+
+    _check_gemini_retry_key(lecture, current_user)
+
+    claimed = await db.execute(update(Lecture).where(
+        Lecture.id == lecture_id, Lecture.user_id == current_user.id,
+        Lecture.status == LectureStatus.FAILED, Lecture.progress_step == 5,
+    ).values(status=LectureStatus.PENDING, error_message=None, failure_key_digest=None))
+    if claimed.rowcount != 1:
+        await db.rollback()
+        raise HTTPException(409, "Flashcard generation is already queued or running.")
+    await db.commit()
+
+    task_id = _queue_flashcard_retry(lecture_id, background_tasks)
+    lecture.celery_task_id = task_id
+    await db.commit()
+    return UploadResponse(lecture_id=lecture_id, task_id=task_id, message="Missing flashcards queued for retry.")
 
 
 # ── Delete lecture ────────────────────────────────────────────────────────────

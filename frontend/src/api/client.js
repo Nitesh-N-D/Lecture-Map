@@ -58,6 +58,7 @@ export const api = {
   exportMyData: () => client.get('/auth/me/export', { responseType: 'blob' }),
   getGeminiKey: () => client.get('/settings/gemini-key'),
   saveGeminiKey: (apiKey) => client.put('/settings/gemini-key', { api_key: apiKey }),
+  testGeminiKey: (apiKey) => client.post('/settings/gemini-key/test', apiKey ? { api_key: apiKey } : {}),
   deleteGeminiKey: () => client.delete('/settings/gemini-key'),
   deleteAccount: (password) =>
     client.delete('/auth/me', { data: { confirm: 'DELETE', password } }),
@@ -72,6 +73,7 @@ export const api = {
     }),
   deleteLecture: (id) => client.delete(`/lectures/${id}`),
   retryLecture: (id) => client.post(`/lectures/${id}/retry`),
+  retryFlashcards: (id) => client.post(`/lectures/${id}/retry-flashcards`),
 
   // Graph
   getGraph: (lectureId) => client.get(`/lectures/${lectureId}/graph`),

@@ -30,6 +30,9 @@ class Lecture(Base):
     celery_task_id = Column(String, nullable=True)
     progress_step = Column(Integer, default=0, nullable=False)  # 0-5
     error_message = Column(Text, nullable=True)
+    # One-way digest of the Gemini key involved in an auth failure; lets retry
+    # enforcement require a changed key without storing or returning the key.
+    failure_key_digest = Column(String(64), nullable=True)
     duration_seconds = Column(Integer, nullable=True)
     concept_count = Column(Integer, default=0, nullable=False)
     edge_count = Column(Integer, default=0, nullable=False)

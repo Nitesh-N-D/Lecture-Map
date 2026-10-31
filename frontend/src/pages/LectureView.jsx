@@ -64,8 +64,13 @@ export default function LectureView() {
   const handleRetry = async () => {
     setRetrying(true)
     try {
-      await api.retryLecture(id)
-      toast.success('Processing restarted')
+      if (lecture?.progress_step === 5) {
+        await api.retryFlashcards(id)
+        toast.success('Missing flashcards queued')
+      } else {
+        await api.retryLecture(id)
+        toast.success('Processing restarted')
+      }
       await loadAll()
     } catch (err) {
       toast.error(errorMessage(err, 'Could not restart processing'))
@@ -204,10 +209,8 @@ export default function LectureView() {
         {lecture.status === 'FAILED' && (
           <div role="alert" className="flex flex-wrap items-center gap-3 border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-800 shrink-0">
             <span>
-              Processing failed{lecture.error_message ? `: ${lecture.error_message}` : '.'}
-              {/Settings/.test(lecture.error_message || '') && (
-                <> <Link to="/settings#gemini-key" className="font-semibold underline">Add your Gemini key</Link></>
-              )}
+              {lecture.progress_step === 5 ? 'Flashcard generation paused. Saved lecture content and cards are preserved.' : `Processing failed${lecture.error_message ? `: ${lecture.error_message.replace(/^\[(?:GEMINI|FLASHCARD):[^\]]+\]\s*/, '')}` : '.'}`}
+              {lecture.progress_step === 5 && <> <Link to="/settings#gemini-key" className="font-semibold underline">Configure or update Gemini key</Link></>}
             </span>
             <button
               type="button"
@@ -215,7 +218,7 @@ export default function LectureView() {
               disabled={retrying}
               className="rounded-xl border border-red-300 bg-[var(--surface-card)] px-3 py-1 font-semibold hover:bg-red-100 disabled:opacity-50"
             >
-              {retrying ? 'Retrying…' : 'Retry processing'}
+              {retrying ? 'Retrying…' : lecture.progress_step === 5 ? 'Retry flashcard generation' : 'Retry processing'}
             </button>
           </div>
         )}

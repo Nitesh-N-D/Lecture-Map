@@ -68,6 +68,8 @@ Do not expose Supabase, Gemini, Neo4j, or JWT secrets in the frontend. The front
 
 ## Processing flow
 
+Gemini requests retry temporary server and network failures up to `GEMINI_MAX_ATTEMPTS` (default 4 total attempts) with jittered backoff capped by `GEMINI_RETRY_MAX_SECONDS` (default 8 seconds). Quota/429 failures stop immediately and preserve completed concept batches. A failed lecture can resume missing flashcards without repeating transcription or concept extraction. Keep the encryption secret stable; if a stored key cannot be decrypted, the owner is prompted to replace it rather than silently falling back to the shared key.
+
     Upload audio/video/PDF
             |
     FastAPI validates and stores the file

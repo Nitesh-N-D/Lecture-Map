@@ -1,6 +1,10 @@
 import asyncio
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
+import hashlib
 import json
 import logging
+import random
 import re
 import threading
 from collections import Counter
@@ -78,9 +82,85 @@ Rules:
 VALID_DIFFICULTIES = {"beginner", "intermediate", "advanced"}
 CHUNK_CHARS = 30_000
 MAX_CHUNKS = 6
-GEMINI_ATTEMPTS = 4
-# Per-minute quota errors need a longer pause than a transient 5xx to clear.
-GEMINI_RATE_LIMIT_DELAYS = (6, 15, 30)
+class GeminiRequestError(RuntimeError):
+    """Safe user-facing Gemini error with a machine-readable failure class."""
+
+    def __init__(self, code: str, message: str, *, retryable: bool = False,
+                 key_fingerprint: str | None = None, retry_after: float | None = None):
+        super().__init__(message)
+        self.code = code
+        self.retryable = retryable
+        self.key_fingerprint = key_fingerprint
+        self.retry_after = retry_after
+
+
+def _retry_after_seconds(error: Exception) -> float | None:
+    value = getattr(error, "retry_after", None) or getattr(error, "retry_delay", None)
+    if value is not None:
+        if hasattr(value, "total_seconds"):
+            return max(0.0, value.total_seconds())
+        try:
+            return max(0.0, float(value))
+        except (TypeError, ValueError):
+            pass
+    response = getattr(error, "response", None)
+    headers = getattr(response, "headers", {}) or {}
+    value = headers.get("Retry-After") if hasattr(headers, "get") else None
+    try:
+        return max(0.0, float(value)) if value is not None else None
+    except (TypeError, ValueError):
+        try:
+            when = parsedate_to_datetime(str(value))
+            return max(0.0, (when - datetime.now(timezone.utc)).total_seconds())
+        except (TypeError, ValueError, OverflowError):
+            return None
+
+
+def _classify_gemini_error(error: Exception) -> tuple[str, bool, float | None]:
+    name = type(error).__name__.lower()
+    message = str(error).lower()
+    status = getattr(error, "status_code", None) or getattr(error, "code", None)
+    try:
+        status = int(status)
+    except (TypeError, ValueError):
+        status = getattr(getattr(error, "response", None), "status_code", None)
+    if status == 429 or name in {"resourceexhausted", "toomanyrequests"} or "resource_exhausted" in message or "quota" in message:
+        return "quota_exhausted", False, _retry_after_seconds(error)
+    if status == 404 or name == "notfound" or "model not found" in message:
+        return "invalid_model", False, None
+    if status in (401, 403) or name in {"permissiondenied", "unauthenticated"}:
+        return ("invalid_api_key" if "api key" in message or status == 401 else "authentication_failed"), False, None
+    if (status == 400 or name == "invalidargument") and ("api key" in message or "key not valid" in message):
+        return "invalid_api_key", False, None
+    if status == 400 and "model" in message:
+        return "invalid_model", False, None
+    if status in (500, 502, 503, 504) or name in {"internalservererror", "serviceunavailable", "deadlineexceeded"}:
+        return "temporary_server_error", True, _retry_after_seconds(error)
+    if isinstance(error, (TimeoutError, asyncio.TimeoutError)) or "timeout" in name or "timed out" in message or "deadline" in message:
+        return "network_timeout", True, _retry_after_seconds(error)
+    if isinstance(error, (ConnectionError, OSError)):
+        return "network_error", True, _retry_after_seconds(error)
+    return "permanent_failure", False, None
+
+
+def _failure_message(code: str) -> str:
+    if code == "quota_exhausted":
+        return ("Your Gemini key has exhausted its API quota. Wait for it to reset, or update your key in Settings."
+                if _using_user_key() else
+                "The shared Gemini API quota has been exhausted. Retry later. Add your own free Gemini key in Settings.")
+    if code == "invalid_api_key":
+        return "Your Gemini API key is invalid. Update it in Settings." if _using_user_key() else "The configured Gemini API key is invalid. Contact support or try again later."
+    if code == "authentication_failed":
+        return "Gemini authentication failed. Check GEMINI_API_KEY."
+    if code == "invalid_model":
+        return "The configured Gemini model is unavailable. Check GEMINI_MODEL."
+    if code == "temporary_server_error":
+        return "Gemini is temporarily unavailable. Retry generation in a moment."
+    if code in {"network_timeout", "network_error"}:
+        return "The Gemini request timed out or could not connect. Retry generation."
+    if code == "api_key_required":
+        return "Gemini is not configured. Add a Gemini API key in Settings to generate flashcards."
+    return "Gemini could not complete this request. Check the API key and model, then retry."
 
 
 def _slugify(value: str) -> str:
@@ -105,7 +185,7 @@ def _using_user_key() -> bool:
 
 def _configure_gemini():
     if not active_gemini_key():
-        raise RuntimeError("GEMINI_API_KEY is not configured")
+        raise GeminiRequestError("api_key_required", _failure_message("api_key_required"))
     return genai.GenerativeModel(settings.GEMINI_MODEL)
 
 
@@ -275,35 +355,24 @@ def _split_transcript(transcript: str) -> list[str]:
 
 
 def _is_retryable(error: Exception) -> bool:
-    text = f"{type(error).__name__} {error}".lower()
-    return any(k in text for k in ("429", "rate", "quota", "503", "unavailable", "timeout", "deadline", "internal", "500"))
+    return _classify_gemini_error(error)[1]
 
 
 def _gemini_failure_message(error: Exception | None) -> str:
     """Turn an SDK error into a safe, actionable message (never includes the key)."""
-    name = type(error).__name__
-    own = _using_user_key()
-    if name in {"PermissionDenied", "Unauthenticated", "InvalidArgument"} and own:
-        return "Your Gemini key was rejected. Update it in Settings."
-    if name in {"ResourceExhausted", "TooManyRequests"}:
-        if own:
-            return "Your Gemini key has reached its quota. Wait a minute, or use a different key in Settings."
-        return "The shared Gemini quota is used up. Add your own free Gemini key in Settings, then retry."
-    if name == "NotFound":
-        return "Gemini model is unavailable. Set GEMINI_MODEL to a model your API key can use."
-    if name in {"PermissionDenied", "Unauthenticated"}:
-        return "Gemini rejected the API key. Check GEMINI_API_KEY."
-    if name == "InvalidArgument":
-        return "Gemini rejected the request. Check GEMINI_API_KEY and GEMINI_MODEL."
-    if name in {"ResourceExhausted", "TooManyRequests"}:
-        return "Gemini quota or rate limit reached. Try again later."
-    return f"Gemini request failed: {name}"
+    code, _, _ = _classify_gemini_error(error or RuntimeError())
+    if code == "permanent_failure":
+        return f"Gemini request failed: {type(error).__name__}"
+    return _failure_message(code)
 
 
 async def _generate_text(model, prompt: str, *, temperature: float, max_tokens: int) -> str:
-    """Call Gemini off the event loop with bounded exponential-backoff retries."""
-    last_error: Exception | None = None
-    for attempt in range(GEMINI_ATTEMPTS):
+    """Call Gemini with bounded jittered retries for transient failures only."""
+    attempts = max(1, settings.GEMINI_MAX_ATTEMPTS)
+    last_code = "permanent_failure"
+    last_retryable = False
+    last_retry_after = None
+    for attempt in range(attempts):
         try:
             response = await asyncio.to_thread(
                 _call_model,
@@ -314,14 +383,30 @@ async def _generate_text(model, prompt: str, *, temperature: float, max_tokens: 
             )
             return response.text
         except Exception as error:  # noqa: BLE001 - SDK raises many types
-            last_error = error
-            if not _is_retryable(error) or attempt == GEMINI_ATTEMPTS - 1:
+            code, retryable, retry_after = _classify_gemini_error(error)
+            last_code = code
+            last_retryable = retryable
+            last_retry_after = retry_after
+            if not retryable or attempt + 1 >= attempts:
                 break
-            rate_limited = type(error).__name__ in {"ResourceExhausted", "TooManyRequests"} or "429" in str(error)
-            delay = GEMINI_RATE_LIMIT_DELAYS[min(attempt, len(GEMINI_RATE_LIMIT_DELAYS) - 1)] if rate_limited else 2 ** attempt
-            logger.warning("Gemini call failed (%s); retrying in %ss", type(error).__name__, delay)
+            cap = max(0.0, settings.GEMINI_RETRY_MAX_SECONDS)
+            exponential = min(cap, max(0.0, settings.GEMINI_RETRY_BASE_SECONDS) * (2 ** attempt))
+            delay = min(cap, max(random.uniform(0.0, exponential), retry_after or 0.0))
+            logger.warning("Gemini call failed (%s); retry %s/%s in %.1fs", code, attempt + 1, attempts - 1, delay)
             await asyncio.sleep(delay)
-    raise RuntimeError(_gemini_failure_message(last_error)) from last_error
+    key = active_gemini_key()
+    fingerprint = hashlib.sha256(key.encode()).hexdigest() if key else None
+    message = _failure_message(last_code)
+    if last_code == "quota_exhausted" and last_retry_after:
+        message += f" Google suggests waiting about {int(last_retry_after)} seconds before retrying."
+    raise GeminiRequestError(last_code, message, retryable=last_retryable, key_fingerprint=fingerprint,
+                             retry_after=last_retry_after) from None
+
+
+async def test_gemini_key() -> None:
+    """Verify a key with a tiny fixed prompt that contains no user data."""
+    model = _configure_gemini()
+    await _generate_text(model, "Reply with OK.", temperature=0, max_tokens=8)
 
 
 async def _extract_chunk(model, chunk: str) -> dict:
@@ -410,20 +495,14 @@ async def generate_flashcards_for_concept(
     definition: str,
     context: str = "",
 ) -> list:
-    if not active_gemini_key():
-        return _fallback_cards(concept_name, definition)
     model = _configure_gemini()
     prompt = FLASHCARD_PROMPT.format(
         concept_name=concept_name,
         definition=definition,
         context=context[:2000] if context else "",
     )
-    try:
-        text = await _generate_text(model, prompt, temperature=0.4, max_tokens=1024)
-        cards = _clean_cards(_load_json_from_model_text(text))
-        if cards:
-            return cards
-        raise RuntimeError("no usable flashcards in response")
-    except Exception as e:
-        logger.error("Flashcard generation failed for %s: %s", concept_name, type(e).__name__)
-        return _fallback_cards(concept_name, definition)
+    text = await _generate_text(model, prompt, temperature=0.4, max_tokens=1024)
+    cards = _clean_cards(_load_json_from_model_text(text))
+    if cards:
+        return cards
+    raise GeminiRequestError("invalid_response", "Gemini returned no usable flashcards.")
