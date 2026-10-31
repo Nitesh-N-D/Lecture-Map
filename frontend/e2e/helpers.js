@@ -20,8 +20,11 @@ export async function signUp(page, email = uniqueEmail(), password = 'e2e-passwo
 
 export async function uploadFixture(page) {
   if (new URL(page.url()).pathname === '/dashboard') {
+    // isVisible() does not wait: on a slow first render it returned false, the click was
+    // skipped and the upload input never appeared (the old intermittent mobile failure).
     const add = page.getByRole('button', { name: 'Add lecture' })
-    if (await add.isVisible()) await add.click()
+    await expect(add).toBeVisible()
+    await add.click()
   }
   await page.getByTestId('upload-input').first().setInputFiles(FIXTURE_PDF)
   await page.getByRole('button', { name: 'Build study materials' }).click()

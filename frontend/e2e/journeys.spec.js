@@ -238,3 +238,82 @@ test.describe('I. mobile @mobile', () => {
     await expect(page.getByRole('list', { name: 'Concept list' }).getByRole('listitem').first()).toBeVisible({ timeout: 45_000 })
   })
 })
+
+test.describe('K. appearance, Gemini key help and Aha Path controls', () => {
+  test('theme choice persists across reloads and the key steps are shown', async ({ page }) => {
+    await signUp(page)
+    await page.goto('/settings')
+    await page.getByRole('radio', { name: /Dark/ }).click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+    await page.reload()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+    await expect(page.getByRole('radio', { name: /Dark/ })).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByRole('heading', { name: 'Your Gemini key' })).toBeVisible()
+    await expect(page.getByRole('link', { name: /Google AI Studio/ })).toHaveAttribute('href', 'https://aistudio.google.com/apikey')
+    await expect(page.getByRole('button', { name: 'Save key' })).toBeDisabled()
+  })
+
+  test('Aha Path can be paused, resumed, skipped and stopped', async ({ page }) => {
+    await signUp(page)
+    await openFirstLecture(page)
+    await page.getByRole('tab', { name: 'Graph' }).click()
+    await page.getByRole('button', { name: /Aha Path/ }).click({ timeout: 45_000 })
+    const group = page.getByRole('group', { name: 'Aha Path controls' })
+    await expect(group.getByRole('button', { name: /Pause \(1\// })).toBeVisible()
+    await group.getByRole('button', { name: /Pause/ }).click()
+    await expect(group.getByRole('button', { name: /Resume \(1\// })).toBeVisible()
+    await page.waitForTimeout(1800) // paused: must not advance
+    await expect(group.getByRole('button', { name: /Resume \(1\// })).toBeVisible()
+    await group.getByRole('button', { name: 'Next concept' }).click()
+    await expect(group.getByRole('button', { name: /Resume \(2\// })).toBeVisible()
+    await group.getByRole('button', { name: 'Previous concept' }).click()
+    await expect(group.getByRole('button', { name: /Resume \(1\// })).toBeVisible()
+    await group.getByRole('button', { name: /Resume/ }).click()
+    await expect(group.getByRole('button', { name: /Pause \(2\// })).toBeVisible({ timeout: 5000 })
+    await group.getByRole('button', { name: 'Stop tour' }).click()
+    await expect(page.getByRole('button', { name: /Aha Path/ })).toBeVisible()
+  })
+})
+
+test.describe('L. study path @mobile', () => {
+  test('a path can be started, paused, restored after reload and completed', async ({ page }) => {
+    await signUp(page)
+    await openFirstLecture(page)
+    // Wait for processing to finish so the graph has concepts.
+    await page.getByRole('tab', { name: 'Concepts' }).click()
+    await expect(page.getByRole('list', { name: 'Concept list' }).getByRole('listitem').first()).toBeVisible({ timeout: 45_000 })
+    const lecturePath = new URL(page.url()).pathname
+    await page.goto(`${lecturePath}/study-path`)
+
+    const select = page.getByLabel('Target concept')
+    await expect(select.locator('option').nth(1)).toBeAttached({ timeout: 20_000 })
+    const target = await select.locator('option').last().getAttribute('value')
+    await select.selectOption(target)
+    await page.getByRole('button', { name: 'Start path' }).click()
+    await expect(page).toHaveURL(new RegExp(`target=${encodeURIComponent(target)}`))
+
+    const summary = page.getByText(/^0 of \d+ steps? complete/)
+    await expect(summary).toBeVisible()
+    const total = Number((await summary.textContent()).match(/of (\d+)/)[1])
+    await expect(page.getByLabel('Current step')).toBeVisible()
+
+    // Pause survives a reload; the target is restored from saved progress (no query string).
+    await page.getByRole('button', { name: /Pause/ }).click()
+    await expect(page.getByText(/Path paused/)).toBeVisible()
+    await page.goto(`${lecturePath}/study-path`)
+    await expect(page.getByText(/^0 of \d+ steps? complete · paused/)).toBeVisible({ timeout: 20_000 })
+    await page.getByRole('button', { name: /Resume/ }).click()
+
+    // Complete every step; completion is stored on the server.
+    for (let done = 1; done <= total; done++) {
+      await page.getByLabel('Current step').getByRole('button', { name: /Complete/ }).click()
+      if (done < total) await expect(page.getByText(new RegExp(`^${done} of ${total} steps? complete`))).toBeVisible()
+    }
+    await expect(page.getByText('Path complete.')).toBeVisible()
+    await page.reload()
+    await expect(page.getByText('Path complete.')).toBeVisible({ timeout: 20_000 })
+
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+    expect(overflow).toBeLessThanOrEqual(1)
+  })
+})
