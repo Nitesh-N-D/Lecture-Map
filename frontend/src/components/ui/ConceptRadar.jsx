@@ -80,12 +80,12 @@ export default function ConceptRadar({ nodes = [], visitedIds = new Set(), size 
         })}
 
         {/* Data shape */}
-        <path d={dataPath} fill="#4f46e5" fillOpacity={0.18} stroke="#4f46e5" strokeWidth={2} strokeLinejoin="round" />
+        <path d={dataPath} fill="var(--viz-main)" fillOpacity={0.22} stroke="var(--viz-main)" strokeWidth={2} strokeLinejoin="round" />
 
         {/* Data points */}
         {stats.map((s, i) => {
           const [x, y] = axisPoint(i, radius * Math.max(s.pct, 0.04))
-          return <circle key={i} cx={x} cy={y} r={3.5} fill="#4f46e5" />
+          return <circle key={i} cx={x} cy={y} r={3.5} fill="var(--viz-main)" />
         })}
 
         {/* Axis labels */}

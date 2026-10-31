@@ -60,7 +60,7 @@ export default function ReviewCard({ card, onRate, remaining }) {
         <div className="w-full flex items-center gap-3">
           <div className="flex-1 h-1.5 surface-border bg-[var(--surface-border)] rounded-full overflow-hidden">
             <div
-              className="h-full bg-brand-500 rounded-full transition-all"
+              className="h-full bg-gradient-to-r from-brand-600 to-brand-400 rounded-full transition-all"
               style={{ width: `${Math.max(0, Math.min(100, 100 - (remaining / Math.max(remaining + 1, 1)) * 100))}%` }}
             />
           </div>
@@ -104,12 +104,12 @@ export default function ReviewCard({ card, onRate, remaining }) {
           {/* Front */}
           <div
             style={{ backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden' }}
-            className="absolute inset-0 surface-card border surface-border rounded-2xl p-8 flex flex-col items-center justify-center shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+            className="absolute inset-0 card rounded-3xl p-8 flex flex-col items-center justify-center shadow-lift cursor-pointer hover:-translate-y-0.5 transition-transform"
           >
-            <p className="text-xs text-brand-500 font-semibold uppercase tracking-wider mb-3">
+            <p className="eyebrow mb-3">
               {card.concept_name}
             </p>
-            <p className="text-lg font-medium text-primary text-center leading-snug">
+            <p className="font-display text-2xl font-medium text-primary text-center leading-snug">
               {card.question}
             </p>
             <p className="mt-6 text-xs text-tertiary">
@@ -124,13 +124,13 @@ export default function ReviewCard({ card, onRate, remaining }) {
               WebkitBackfaceVisibility: 'hidden',
               transform: 'rotateY(180deg)',
             }}
-            className="absolute inset-0 bg-slate-900 border border-slate-700 rounded-2xl p-8 flex flex-col justify-between shadow-sm"
+            className="absolute inset-0 ink-panel rounded-3xl p-8 flex flex-col justify-between shadow-lift"
           >
             <div>
-              <p className="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-2">Answer</p>
-              <p className="text-base text-white leading-relaxed">{card.answer}</p>
+              <p className="text-xs text-sage-200 font-semibold uppercase tracking-wider mb-2">Answer</p>
+              <p className="text-base text-sage-50 leading-relaxed">{card.answer}</p>
             </div>
-            <p className="text-xs text-slate-500 mt-4 border-t border-slate-700 pt-3">
+            <p className="text-xs text-sage-200 mt-4 border-t border-white/20 pt-3">
               {card.concept_name}
             </p>
           </div>
@@ -148,12 +148,12 @@ export default function ReviewCard({ card, onRate, remaining }) {
                 key={q}
                 onClick={() => handleRate(q)}
                 disabled={rating !== null}
-                className={`relative flex-1 flex flex-col items-center gap-1 py-3 rounded-xl border-2 transition-all ${
-                  active ? 'scale-95 opacity-70' : 'hover:scale-105'
+                className={`relative flex-1 flex flex-col items-center gap-1 py-3 rounded-2xl border-2 bg-[var(--surface-card)] transition-all ${
+                  active ? 'scale-95 opacity-70' : 'hover:-translate-y-0.5 hover:shadow-lift'
                 }`}
                 style={{
                   borderColor: color,
-                  background: active ? color + '22' : 'transparent',
+                  background: active ? color + '22' : undefined,
                 }}
               >
                 <span className="text-sm font-semibold" style={{ color }}>{label}</span>
@@ -170,7 +170,7 @@ export default function ReviewCard({ card, onRate, remaining }) {
       {!flipped && (
         <button
           onClick={() => setFlipped(true)}
-          className="text-sm text-secondary hover:text-primary"
+          className="text-sm font-semibold text-brand-700 hover:text-brand-900"
         >
           Show answer ↓
         </button>

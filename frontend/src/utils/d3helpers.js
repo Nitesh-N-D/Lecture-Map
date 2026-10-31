@@ -1,9 +1,9 @@
 import * as d3 from 'd3'
 
 export const DIFFICULTY_COLORS = {
-  beginner: '#4ade80',
-  intermediate: '#60a5fa',
-  advanced: '#f472b6',
+  beginner: 'var(--diff-beginner)',
+  intermediate: 'var(--diff-intermediate)',
+  advanced: 'var(--diff-advanced)',
 }
 
 export const DIFFICULTY_RADIUS = {
@@ -28,7 +28,7 @@ export function createSimulation(nodes, links, width, height) {
     .force('collision', d3.forceCollide().radius(40))
 }
 
-export function createArrowMarker(defs, id = 'arrowhead', color = '#94a3b8') {
+export function createArrowMarker(defs, id = 'arrowhead', color = 'var(--viz-edge)') {
   defs
     .append('marker')
     .attr('id', id)
@@ -56,7 +56,7 @@ export function createGapArrowMarker(defs) {
     .attr('orient', 'auto')
     .append('path')
     .attr('d', 'M0,-5L10,0L0,5')
-    .attr('fill', '#ef4444')
+    .attr('fill', 'var(--viz-gap)')
     .attr('opacity', 0.8)
 }
 
@@ -65,7 +65,7 @@ export function truncateLabel(name, maxLen = 15) {
 }
 
 export function getNodeColor(difficulty, isGap, isVisited) {
-  if (isGap) return '#ef4444'
+  if (isGap) return 'var(--viz-gap)'
   return DIFFICULTY_COLORS[difficulty] || DIFFICULTY_COLORS.intermediate
 }
 

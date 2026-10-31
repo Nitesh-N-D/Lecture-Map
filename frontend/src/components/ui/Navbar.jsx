@@ -4,6 +4,8 @@ import useStore from '../../store/useStore'
 import { api } from '../../api/client'
 import AuthModal from './AuthModal'
 import Button from './Button'
+import Icon, { LogoMark } from './Icon'
+import ThemeToggle from './ThemeToggle'
 import toast from 'react-hot-toast'
 
 export default function Navbar() {
@@ -39,19 +41,19 @@ export default function Navbar() {
   const isMac = typeof navigator !== 'undefined' && /Mac/.test(navigator.platform)
 
   return (
-    <nav className="min-h-14 surface-card border-b surface-border flex items-center px-3 sm:px-4 gap-3 sticky top-0 z-40">
-      <Link to="/" className="flex items-center gap-2 font-semibold text-primary shrink-0">
-        <span className="w-8 h-8 rounded-lg bg-brand-600 text-white grid place-items-center text-xs font-bold">LM</span>
-        <span className="hidden sm:block">LectureMap</span>
+    <nav className="h-14 bg-[var(--surface-bg)] border-b surface-border flex items-center px-3 sm:px-5 gap-3 sticky top-0 z-40">
+      <Link to="/" aria-label="LectureMap home" className="flex items-center gap-2.5 text-primary shrink-0">
+        <LogoMark size={30} />
+        <span className="hidden sm:block font-display text-lg font-semibold tracking-tight">LectureMap</span>
       </Link>
 
       {isAuthenticated && (
-        <div className="flex items-center gap-1 overflow-x-auto">
+        <div className="hidden lg:flex items-center gap-1 ml-1">
           <NavLink to="/dashboard" active={isActive('/dashboard')}>Dashboard</NavLink>
           <NavLink to="/review" active={isActive('/review')}>
             Review
             {reviewStats?.cards_due_today > 0 && (
-              <span className="ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-semibold bg-brand-600 text-white rounded-full">
+              <span className="ml-1.5 inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 text-[11px] font-bold bg-accent-500 text-on-accent rounded-full">
                 {reviewStats.cards_due_today}
               </span>
             )}
@@ -64,59 +66,48 @@ export default function Navbar() {
           variant="outline"
           size="sm"
           onClick={() => setCommandPaletteOpen(true)}
-          className="hidden md:flex gap-2 ml-2 text-tertiary"
+          className="hidden md:flex gap-2 ml-2 text-tertiary font-medium"
         >
+          <Icon name="search" size={15} />
           <span>Search</span>
-          <kbd className="ml-2 text-[10px] font-mono surface-bg border surface-border rounded px-1.5 py-0.5">
+          <kbd className="ml-3 text-[10px] font-mono bg-slate-100 border surface-border rounded-md px-1.5 py-0.5">
             {isMac ? 'Cmd K' : 'Ctrl K'}
           </kbd>
         </Button>
       )}
 
-      <div className="ml-auto flex items-center gap-2 sm:gap-3">
+      <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+        <ThemeToggle />
         {isAuthenticated ? (
           <>
-            <span className="hidden sm:block text-sm text-secondary truncate max-w-[140px]">
-              {user?.name || 'Guest'}
+            <span className="hidden sm:flex items-center gap-2 text-sm text-secondary truncate max-w-[180px]">
+              <span className="grid place-items-center w-7 h-7 rounded-full bg-brand-100 text-brand-800 text-xs font-bold uppercase" aria-hidden="true">
+                {(user?.name || 'G').charAt(0)}
+              </span>
+              <span className="truncate">{user?.name || 'Guest'}</span>
               {user?.is_guest && (
-                <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5">guest</span>
+                <span className="chip border-accent-200 bg-accent-50 text-accent-700">guest</span>
               )}
             </span>
             <Link
               to="/settings"
-              className="hidden sm:inline-flex items-center h-9 px-3 rounded-md text-sm text-slate-600 hover:bg-slate-50"
+              className="hidden sm:inline-flex items-center h-9 px-3 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-900/5"
             >
               Privacy
             </Link>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleLogout}
-            >
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
               Sign out
             </Button>
           </>
         ) : (
           <>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleGuestLogin}
-              className="hidden sm:inline-flex"
-            >
+            <Button variant="ghost" size="sm" onClick={handleGuestLogin} className="hidden sm:inline-flex">
               Try as guest
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setAuthModal('login')}
-            >
+            <Button variant="ghost" size="sm" onClick={() => setAuthModal('login')}>
               Sign in
             </Button>
-            <Button
-              size="sm"
-              onClick={() => setAuthModal('signup')}
-            >
+            <Button size="sm" onClick={() => setAuthModal('signup')}>
               Sign up
             </Button>
           </>
@@ -136,10 +127,11 @@ function NavLink({ to, active, children }) {
   return (
     <Link
       to={to}
-      className={`flex items-center text-sm px-3 py-1.5 rounded-md transition-colors whitespace-nowrap ${
+      aria-current={active ? 'page' : undefined}
+      className={`flex items-center text-sm px-3 py-1.5 rounded-xl transition-colors whitespace-nowrap ${
         active
-          ? 'bg-brand-50 text-brand-600 font-medium'
-          : 'text-secondary hover:bg-slate-50'
+          ? 'bg-brand-100 text-brand-800 font-semibold'
+          : 'text-secondary font-medium hover:bg-slate-900/5'
       }`}
     >
       {children}

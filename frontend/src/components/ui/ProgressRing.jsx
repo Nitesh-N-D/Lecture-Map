@@ -10,7 +10,7 @@ export default function ProgressRing({ percent = 0, size = 48, stroke = 4 }) {
         cy={size / 2}
         r={r}
         fill="none"
-        stroke="var(--surface-border-strong, #e2e8f0)"
+        stroke="var(--viz-track)"
         strokeWidth={stroke}
       />
       <circle
@@ -18,7 +18,7 @@ export default function ProgressRing({ percent = 0, size = 48, stroke = 4 }) {
         cy={size / 2}
         r={r}
         fill="none"
-        stroke="#4f46e5"
+        stroke="var(--viz-main)"
         strokeWidth={stroke}
         strokeDasharray={circ}
         strokeDashoffset={offset}

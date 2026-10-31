@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useSearchParams } from 'react-router-dom'
 import { Toaster } from 'react-hot-toast'
 import Navbar from './components/ui/Navbar'
-import Sidebar from './components/ui/Sidebar'
+import Sidebar, { MobileNav } from './components/ui/Sidebar'
 import CommandPalette from './components/ui/CommandPalette'
 import ErrorBoundary from './components/ui/ErrorBoundary'
 import Landing from './pages/Landing'
@@ -74,10 +74,11 @@ function Layout({ children, withSidebar = false, title }) {
       <Navbar />
       <div className="flex flex-1 min-h-0">
         {withSidebar && <Sidebar lectureId={lectureId} />}
-        <main id="main-content" tabIndex={-1} className="flex-1 min-w-0 outline-none">
+        <main id="main-content" tabIndex={-1} className={`flex-1 min-w-0 outline-none ${withSidebar ? 'pb-14 lg:pb-0' : ''}`}>
           {children}
         </main>
       </div>
+      {withSidebar && <MobileNav lectureId={lectureId} />}
     </div>
   )
 }
@@ -90,6 +91,14 @@ export default function App() {
         toastOptions={{
           className: 'text-sm',
           duration: 3500,
+          style: {
+            background: 'var(--surface-elevated)',
+            color: 'var(--text-primary)',
+            border: '1px solid var(--border)',
+            borderRadius: '0.875rem',
+          },
+          success: { iconTheme: { primary: 'var(--viz-mid)', secondary: 'var(--surface-elevated)' } },
+          error: { iconTheme: { primary: 'var(--viz-gap)', secondary: 'var(--surface-elevated)' } },
         }}
       />
       <CommandPalette />

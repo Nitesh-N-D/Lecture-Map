@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react'
 import { api } from '../../api/client'
 import Button from '../ui/Button'
+import Icon from '../ui/Icon'
 import toast from 'react-hot-toast'
 
 const ALLOWED_EXTENSIONS = ['mp3', 'mp4', 'wav', 'm4a', 'webm', 'ogg', 'pdf']
@@ -54,14 +55,14 @@ export default function UploadZone({ onSubmit }) {
   }
 
   const uploadState = dragging
-    ? 'border-brand-400 bg-brand-50'
+    ? 'border-brand-500 bg-brand-50'
     : file
-      ? 'border-emerald-300 bg-emerald-50'
-      : 'surface-border hover:border-brand-300 hover:bg-slate-50'
+      ? 'border-brand-400 bg-brand-50/60'
+      : 'border-slate-300 bg-[var(--surface-card)] hover:border-brand-400 hover:bg-brand-50/50'
 
   return (
-    <section className="surface-card rounded-xl border surface-border p-6 w-full max-w-xl shadow-sm">
-      <h2 className="text-lg font-semibold text-primary">Add learning material</h2>
+    <section className="card p-6 sm:p-7 w-full max-w-xl shadow-lift">
+      <h2 className="text-2xl font-semibold text-primary">Add learning material</h2>
       <p className="text-sm text-secondary mt-1 mb-5">
         Upload an audio or video recording, or a PDF with selectable text.
       </p>
@@ -86,10 +87,10 @@ export default function UploadZone({ onSubmit }) {
         role="button"
         tabIndex={0}
         aria-label={file ? `Selected file ${file.name}. Press Enter to choose a different file` : 'Choose an audio, video or PDF file to upload'}
-        className={`border-2 border-dashed rounded-xl p-9 flex flex-col items-center gap-3 cursor-pointer transition-colors ${uploadState}`}
+        className={`border-2 border-dashed rounded-2xl p-9 flex flex-col items-center gap-3 cursor-pointer transition-colors ${uploadState}`}
       >
-        <span className="grid h-9 w-9 place-items-center rounded-full bg-white border border-slate-200 text-lg font-semibold text-brand-600">
-          {file ? 'OK' : '+'}
+        <span className="grid h-12 w-12 place-items-center rounded-full bg-brand-100 text-brand-700">
+          <Icon name={file ? 'check' : 'upload'} size={22} />
         </span>
         {file ? (
           <>

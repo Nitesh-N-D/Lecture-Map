@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
+import Icon from '../ui/Icon'
 import toast from 'react-hot-toast'
 
 const STEPS = [
@@ -81,15 +82,15 @@ export default function ProcessingStatus({ lectureId, onComplete, onStatusChange
   const percent = status?.progress_percent || 0
 
   return (
-    <div className="surface-card rounded-xl border surface-border p-6 w-full max-w-md shadow-sm">
+    <div className="card p-6 w-full max-w-md shadow-lift">
       <div className="flex items-center justify-between mb-5">
-        <h3 className="font-semibold text-primary">Processing lecture...</h3>
+        <h3 className="font-display text-lg font-semibold text-primary">Processing lecture...</h3>
         <span className="text-sm text-tertiary font-mono">{formatElapsed(elapsed)}</span>
       </div>
 
-      <div className="w-full h-2 surface-bg rounded-full mb-6 overflow-hidden">
+      <div className="w-full h-2.5 bg-slate-200 rounded-full mb-6 overflow-hidden" role="progressbar" aria-label="Processing progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(percent)}>
         <div
-          className="h-full bg-brand-600 rounded-full transition-all duration-500"
+          className="h-full bg-gradient-to-r from-brand-600 to-brand-400 rounded-full transition-all duration-500"
           style={{ width: `${percent}%` }}
         />
       </div>
@@ -104,19 +105,19 @@ export default function ProcessingStatus({ lectureId, onComplete, onStatusChange
             <div key={step} className={`flex items-center gap-3 ${pending ? 'opacity-45' : ''}`}>
               <div className={`w-7 h-7 rounded-full flex items-center justify-center text-sm shrink-0 transition-all ${
                 done
-                  ? 'bg-green-100 text-green-600'
+                  ? 'bg-primary text-on-primary'
                   : active
-                    ? 'bg-brand-100 text-brand-600'
-                    : 'surface-bg text-tertiary'
+                    ? 'bg-brand-100 text-brand-700'
+                    : 'bg-slate-100 text-tertiary'
               }`}>
-                {done ? 'OK' : active ? (
+                {done ? <Icon name="check" size={14} strokeWidth={2.6} /> : active ? (
                   <span className="w-3 h-3 rounded-full border-2 border-brand-400 border-t-transparent animate-spin" />
                 ) : step}
               </div>
               <span className={`text-sm ${active ? 'text-primary font-medium' : 'text-secondary'}`}>
                 {label}
                 {active && <span className="text-tertiary text-xs ml-2">in progress...</span>}
-                {done && <span className="text-green-600 text-xs ml-2">done</span>}
+                {done && <span className="text-brand-700 text-xs ml-2">done</span>}
               </span>
             </div>
           )
@@ -132,6 +133,9 @@ export default function ProcessingStatus({ lectureId, onComplete, onStatusChange
       {status?.status === 'FAILED' && (
         <div className="mt-4 bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
           {status.error_message || 'Processing failed. Please try again.'}
+          {/Settings/.test(status.error_message || '') && (
+            <> <Link to="/settings#gemini-key" className="font-semibold underline">Add your Gemini key</Link></>
+          )}
         </div>
       )}
     </div>

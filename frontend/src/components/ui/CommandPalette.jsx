@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useStore from '../../store/useStore'
 import { api } from '../../api/client'
+import Icon from './Icon'
 
 export default function CommandPalette() {
   const navigate = useNavigate()
@@ -109,10 +110,10 @@ export default function CommandPalette() {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg surface-card border surface-border rounded-xl shadow-2xl overflow-hidden animate-scale-in"
+        className="w-full max-w-lg surface-card border surface-border rounded-2xl shadow-2xl overflow-hidden animate-scale-in"
       >
         <div className="flex items-center gap-3 px-4 py-3 border-b surface-border">
-          <span className="text-xs font-semibold text-brand-600">Search</span>
+          <Icon name="search" size={16} className="text-brand-700" />
           <input
             ref={inputRef}
             value={query}
@@ -137,7 +138,7 @@ export default function CommandPalette() {
                 }}
                 onMouseEnter={() => setActiveIdx(i)}
                 className={`w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ${
-                  i === activeIdx ? 'bg-brand-50' : ''
+                  i === activeIdx ? 'bg-brand-50 shadow-[inset_3px_0_0_var(--atlas-teal)]' : ''
                 }`}
               >
                 <div className="min-w-0 flex-1">

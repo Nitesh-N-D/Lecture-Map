@@ -1,199 +1,312 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { api } from '../api/client'
 import useStore from '../store/useStore'
+import Icon from '../components/ui/Icon'
+import ProgressRing from '../components/ui/ProgressRing'
 import toast from 'react-hot-toast'
+import { buildSteps, loadSession, saveSession } from '../lib/studyPath'
 
 const DIFF_COLORS = {
-  beginner: 'bg-green-100 text-green-700 border-green-200',
-  intermediate: 'bg-blue-100 text-blue-700 border-blue-200',
-  advanced: 'bg-pink-100 text-pink-700 border-pink-200',
+  beginner: 'bg-brand-100 text-brand-800 border-brand-200',
+  intermediate: 'bg-brand-200 text-brand-900 border-brand-300',
+  advanced: 'bg-brand-800 text-sage-50 border-brand-800',
 }
+
+const secondaryButton = 'inline-flex items-center gap-1.5 min-h-10 px-3.5 rounded-xl text-sm font-semibold border surface-border text-secondary hover:text-primary hover:border-brand-300 disabled:opacity-40 transition-colors'
+const primaryButton = 'inline-flex items-center gap-1.5 min-h-10 px-4 rounded-xl text-sm font-semibold bg-primary text-on-primary shadow-paper hover:bg-primary-hover disabled:opacity-40 transition-colors'
 
 export default function StudyPath() {
   const { id } = useParams()
-  const [searchParams] = useSearchParams()
-  const { graphData, setGraphData, visitedNodes, setVisitedNodes, markNodeVisited } = useStore()
-  const [path, setPath] = useState(null)
-  const [targetId, setTargetId] = useState(searchParams.get('target') || '')
-  const [loading, setLoading] = useState(false)
-  const [graphLoading, setGraphLoading] = useState(false)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { user, setGraphData, visitedNodes, setVisitedNodes, markNodeVisited } = useStore()
+  const userId = user?.id
 
-  // Fetch graph data directly if the user landed here without first
-  // visiting the LectureView graph tab (e.g. bookmark, sidebar link, refresh).
-  useEffect(() => {
-    if (graphData?.nodes?.length > 0) return
-    const loadGraph = async () => {
-      setGraphLoading(true)
-      try {
-        const { data } = await api.getGraph(id)
-        setGraphData(data)
-        setVisitedNodes((data.nodes || []).filter((node) => node.is_visited).map((node) => node.concept_id))
-      } catch {
-        toast.error('Failed to load concept graph')
-      } finally {
-        setGraphLoading(false)
+  // Restore the saved session once per lecture; a ?target link wins over it.
+  const [session, setSession] = useState(() => {
+    const saved = loadSession(userId, id)
+    const queryTarget = searchParams.get('target')
+    return queryTarget && queryTarget !== saved.target
+      ? { target: queryTarget, skipped: [], paused: false }
+      : saved
+  })
+  const [selection, setSelection] = useState(session.target)
+  const [nodes, setNodes] = useState([])
+  const [path, setPath] = useState(null)
+  const [graphState, setGraphState] = useState('loading') // loading | ready | error
+  const [pathState, setPathState] = useState('idle') // idle | loading | ready | error
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => { saveSession(userId, id, session) }, [userId, id, session])
+
+  // Always load this lecture's graph: the store may hold another lecture's graph.
+  const loadGraph = useCallback(async () => {
+    setGraphState('loading')
+    try {
+      const { data } = await api.getGraph(id)
+      setNodes(data.nodes || [])
+      setGraphData(data)
+      setVisitedNodes((data.nodes || []).filter((n) => n.is_visited).map((n) => n.concept_id))
+      setGraphState('ready')
+    } catch {
+      setGraphState('error')
+    }
+  }, [id, setGraphData, setVisitedNodes])
+
+  useEffect(() => { loadGraph() }, [loadGraph])
+
+  const fetchPath = useCallback(async (target) => {
+    setPathState('loading')
+    try {
+      const { data } = await api.getStudyPath(id, target)
+      setPath(data)
+      setPathState('ready')
+    } catch (e) {
+      setPath(null)
+      setPathState('error')
+      if (e.response?.status === 404) {
+        // Saved target no longer exists in this lecture (e.g. regenerated graph).
+        setSession({ target: '', skipped: [], paused: false })
+        toast.error('That concept is no longer in this lecture')
+      } else {
+        toast.error(e.response?.data?.detail || 'Failed to generate study path')
       }
     }
-    loadGraph()
   }, [id])
 
-  const nodes = graphData?.nodes || []
-
-  // If a target concept arrived via query param (e.g. "Add to study path"
-  // from NodePanel), auto-generate the path as soon as the graph is ready
-  // instead of making the user re-select it from the dropdown.
+  // Restore the path after refresh, or follow a ?target deep link.
   useEffect(() => {
-    const queryTarget = searchParams.get('target')
-    if (queryTarget && nodes.length > 0 && !path && !loading) {
-      setTargetId(queryTarget)
-      handleGenerate(queryTarget)
+    if (graphState === 'ready' && session.target && !path && pathState === 'idle') {
+      fetchPath(session.target)
     }
-  }, [nodes.length])
+  }, [graphState, session.target, path, pathState, fetchPath])
 
-  const handleGenerate = async (overrideId) => {
-    const useId = overrideId || targetId
-    if (!useId) {
+  // Keep the URL shareable and in sync with the active target.
+  useEffect(() => {
+    const current = searchParams.get('target') || ''
+    if (current !== session.target) {
+      setSearchParams(session.target ? { target: session.target } : {}, { replace: true })
+    }
+  }, [session.target, searchParams, setSearchParams])
+
+  const { steps, current, done } = useMemo(
+    () => buildSteps(path, visitedNodes, session.skipped),
+    [path, visitedNodes, session.skipped]
+  )
+  const complete = path && steps.length > 0 && current === -1
+  const percent = steps.length ? Math.round((done / steps.length) * 100) : 0
+  const active = current >= 0 ? steps[current] : null
+
+  const start = () => {
+    if (!selection) {
       toast.error('Please select a target concept')
       return
     }
-    setLoading(true)
+    setPath(null)
+    setPathState('idle')
+    setSession({ target: selection, skipped: [], paused: false })
+    fetchPath(selection)
+  }
+
+  const reset = () => {
+    setPath(null)
+    setPathState('idle')
+    setSelection('')
+    setSession({ target: '', skipped: [], paused: false })
+  }
+
+  const completeStep = async (step) => {
+    setBusy(true)
     try {
-      const { data } = await api.getStudyPath(id, useId)
-      setPath(data)
-    } catch {
-      toast.error('Failed to generate study path')
+      await api.markVisited(step.concept_id, id)
+      markNodeVisited(step.concept_id)
+      setSession((s) => ({ ...s, skipped: s.skipped.filter((c) => c !== step.concept_id) }))
+      toast.success(step.isTarget ? 'Target reached!' : `${step.name} completed`)
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Could not save progress')
     } finally {
-      setLoading(false)
+      setBusy(false)
     }
   }
 
-  const handleMarkStudied = async (conceptId) => {
+  const undoStep = async (step) => {
+    setBusy(true)
     try {
-      await api.markVisited(conceptId, id)
-      markNodeVisited(conceptId)
-      toast.success('Marked as studied!')
-    } catch {
-      toast.error('Failed to mark studied')
+      await api.unmarkVisited(step.concept_id, id)
+      setVisitedNodes([...visitedNodes].filter((c) => c !== step.concept_id))
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Could not undo')
+    } finally {
+      setBusy(false)
     }
   }
+
+  const skipStep = (step) =>
+    setSession((s) => ({ ...s, skipped: [...new Set([...s.skipped, step.concept_id])] }))
+
+  const setPaused = (paused) => setSession((s) => ({ ...s, paused }))
+
+  const targetChoices = nodes.filter((n) => n.difficulty === 'advanced' || n.difficulty === 'intermediate')
+  const choices = targetChoices.length ? targetChoices : nodes
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <div className="flex items-center gap-3 mb-6">
-        <Link to={`/lectures/${id}`} className="text-tertiary hover:text-secondary text-sm">
-          ← Back to lecture
-        </Link>
-        <h1 className="text-2xl font-bold text-primary">Study Path</h1>
-      </div>
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10 animate-fade-in">
+      <Link to={`/lectures/${id}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-secondary hover:text-primary">
+        <Icon name="arrowLeft" size={15} /> Back to lecture
+      </Link>
+      <p className="eyebrow mt-5">Prerequisite route</p>
+      <h1 className="text-4xl font-semibold text-primary mt-1 mb-6">Study Path</h1>
 
-      <div className="surface-card border surface-border rounded-xl p-5 mb-6">
+      <div className="card p-5 sm:p-6 mb-6">
         <p className="text-sm text-secondary mb-4">
-          Select a concept you want to master. LectureMap will show you the optimal prerequisite path to get there.
+          Pick a concept you want to master. LectureMap orders its prerequisites so each step builds on the last.
         </p>
 
-        {graphLoading ? (
-          <div className="flex items-center gap-2 text-sm text-tertiary py-2">
-            <span className="w-4 h-4 border-2 surface-border border-t-brand-500 rounded-full animate-spin" />
+        {graphState === 'loading' ? (
+          <div className="flex items-center gap-2 text-sm text-tertiary py-2" role="status">
+            <span className="w-4 h-4 border-2 surface-border border-t-brand-700 rounded-full animate-spin" />
             Loading concept graph…
           </div>
+        ) : graphState === 'error' ? (
+          <div role="alert" className="flex items-center justify-between gap-3 text-sm text-red-700">
+            <span>Could not load this lecture's concepts.</span>
+            <button onClick={loadGraph} className={secondaryButton}>Retry</button>
+          </div>
         ) : nodes.length === 0 ? (
-          <p className="text-sm text-tertiary py-2">
-            No concepts found for this lecture yet.
-          </p>
+          <p className="text-sm text-tertiary py-2">No concepts found for this lecture yet.</p>
         ) : (
-          <div className="flex gap-3">
+          <div className="flex gap-3 max-sm:flex-col">
             <select
-              value={targetId}
-              onChange={(e) => setTargetId(e.target.value)}
-              className="flex-1 surface-bg border surface-border rounded-lg px-3 py-2 text-sm outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100 text-primary"
+              value={selection}
+              onChange={(e) => setSelection(e.target.value)}
+              aria-label="Target concept"
+              className="field flex-1"
             >
               <option value="">Choose target concept…</option>
-              {nodes
-                .filter((n) => n.difficulty === 'advanced' || n.difficulty === 'intermediate')
-                .map((n) => (
-                  <option key={n.concept_id} value={n.concept_id}>
-                    {n.name} ({n.difficulty})
-                  </option>
-                ))}
+              {choices.map((n) => (
+                <option key={n.concept_id} value={n.concept_id}>
+                  {n.name} ({n.difficulty})
+                </option>
+              ))}
             </select>
             <button
-              onClick={() => handleGenerate()}
-              disabled={loading || !targetId}
-              className="bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-40 transition-colors"
+              onClick={start}
+              disabled={pathState === 'loading' || !selection}
+              className={`${primaryButton} justify-center h-11`}
             >
-              {loading ? '…' : 'Generate path'}
+              {pathState === 'loading' ? 'Loading…' : session.target && selection === session.target ? 'Restart path' : 'Start path'}
             </button>
           </div>
         )}
       </div>
 
       {path && (
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-primary">
-              {path.total_steps} step{path.total_steps !== 1 ? 's' : ''} to master this concept
-            </h2>
-            <span className="text-xs text-tertiary">
-              {path.path.filter((n) => visitedNodes.has(n.concept_id)).length} / {path.total_steps} done
-            </span>
-          </div>
-
-          <div className="flex flex-col gap-2">
-            {path.path.map((node, i) => {
-              const visited = visitedNodes.has(node.concept_id)
-              return (
-                <div key={node.concept_id} className="relative">
-                  <div className={`flex items-start gap-4 surface-card border rounded-xl p-4 transition-all ${
-                    visited ? 'border-green-200 bg-green-50/50' : 'surface-border hover:border-brand-200'
-                  }`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 ${
-                      visited ? 'bg-green-100 text-green-700' : 'surface-bg text-secondary'
-                    }`}>
-                      {visited ? '✓' : i + 1}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-medium text-primary text-sm">{node.name}</p>
-                        <span className={`text-xs px-2 py-0.5 rounded-full border ${DIFF_COLORS[node.difficulty] || DIFF_COLORS.intermediate}`}>
-                          {node.difficulty}
-                        </span>
-                      </div>
-                      <p className="text-xs text-tertiary leading-relaxed">{node.definition}</p>
-                    </div>
-                    {!visited && (
-                      <button
-                        onClick={() => handleMarkStudied(node.concept_id)}
-                        className="shrink-0 text-xs text-brand-600 hover:text-brand-700 font-medium border border-brand-200 px-2.5 py-1 rounded-lg transition-colors"
-                      >
-                        Mark done
-                      </button>
-                    )}
-                  </div>
-                  {i < path.path.length - 1 && (
-                    <div className="w-px h-3 bg-[var(--surface-border-strong)] ml-8" />
-                  )}
-                </div>
-              )
-            })}
-
-            {/* Target node */}
-            <div className="relative">
-              <div className="w-px h-3 bg-[var(--surface-border-strong)] ml-8" />
-              <div className="flex items-start gap-4 bg-brand-50 border border-brand-200 rounded-xl p-4">
-                <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-sm font-semibold shrink-0">
-                  🎯
-                </div>
-                <div>
-                  <p className="font-semibold text-brand-900 text-sm">
-                    {nodes.find((n) => n.concept_id === targetId)?.name || 'Target concept'}
-                  </p>
-                  <p className="text-xs text-brand-600 mt-0.5">Your goal</p>
-                </div>
+        <section aria-labelledby="path-heading">
+          <div className="card p-5 sm:p-6 mb-4">
+            <div className="flex items-center gap-4 flex-wrap">
+              <ProgressRing percent={percent} size={56} stroke={4} />
+              <div className="flex-1 min-w-[10rem]">
+                <h2 id="path-heading" className="text-2xl font-semibold text-primary">
+                  {path.target?.name || 'Study path'}
+                </h2>
+                <p className="text-sm text-secondary" aria-live="polite">
+                  {done} of {steps.length} step{steps.length !== 1 ? 's' : ''} complete
+                  {session.paused && !complete ? ' · paused' : ''}
+                </p>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                {!complete && (session.paused ? (
+                  <button onClick={() => setPaused(false)} className={primaryButton}>
+                    <Icon name="play" size={15} /> Resume
+                  </button>
+                ) : (
+                  <button onClick={() => setPaused(true)} className={secondaryButton}>
+                    <Icon name="pause" size={15} /> Pause
+                  </button>
+                ))}
+                <button onClick={reset} className={secondaryButton}>Change target</button>
               </div>
             </div>
+
+            {complete ? (
+              <div className="mt-5 rounded-xl bg-brand-50 border border-brand-200 p-4" role="status">
+                <p className="font-semibold text-brand-900">Path complete.</p>
+                <p className="text-sm text-secondary mt-1">
+                  You've studied every prerequisite and the target. Review its flashcards to turn this into lasting mastery.
+                </p>
+                <Link to="/review" className={`${primaryButton} mt-3`}>
+                  Review flashcards <Icon name="arrowRight" size={15} />
+                </Link>
+              </div>
+            ) : active && !session.paused ? (
+              <div className="mt-5 rounded-xl border border-brand-300 p-4" aria-label="Current step">
+                <p className="eyebrow">Step {current + 1} · {active.isTarget ? 'your target' : 'up next'}</p>
+                <p className="font-semibold text-primary mt-1">{active.name}</p>
+                {active.definition && <p className="text-sm text-secondary mt-1 leading-relaxed">{active.definition}</p>}
+                <div className="flex gap-2 flex-wrap mt-3">
+                  <button onClick={() => completeStep(active)} disabled={busy} className={primaryButton}>
+                    <Icon name="check" size={15} /> {active.isTarget ? 'Complete target' : 'Complete & next'}
+                  </button>
+                  {!active.isTarget && steps.some((s, i) => i !== current && !s.finished) && (
+                    <button onClick={() => skipStep(active)} disabled={busy} className={secondaryButton}>
+                      Skip for now
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : session.paused ? (
+              <p className="mt-5 text-sm text-secondary">Path paused. Your progress is saved — resume any time.</p>
+            ) : null}
           </div>
-        </div>
+
+          {steps.length === 1 && !path.path?.length && (
+            <p className="text-sm text-tertiary mb-3">This concept has no prerequisites — you can study it directly.</p>
+          )}
+
+          <ol className="flex flex-col gap-2" aria-label="Path steps">
+            {steps.map((step, i) => (
+              <li key={step.concept_id}>
+                <div className={`flex items-start gap-4 border rounded-2xl p-4 shadow-paper transition-all ${
+                  step.isTarget ? 'ink-panel border-transparent' :
+                  step.finished ? 'border-brand-200 bg-brand-50/60' :
+                  i === current && !session.paused ? 'surface-card border-brand-400' : 'surface-card surface-border'
+                }`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold shrink-0 ${
+                    step.finished ? 'bg-primary text-on-primary' : step.isTarget ? 'bg-accent-500 text-on-accent' : 'bg-slate-100 text-secondary'
+                  }`}>
+                    {step.finished ? <Icon name="check" size={16} strokeWidth={2.6} label="Done" />
+                      : step.isTarget ? <Icon name="target" size={16} label="Target" /> : i + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <p className={`font-medium text-sm ${step.isTarget ? 'text-sage-50' : 'text-primary'}`}>{step.name}</p>
+                      {step.difficulty && (
+                        <span className={`text-xs px-2 py-0.5 rounded-full border ${DIFF_COLORS[step.difficulty] || DIFF_COLORS.intermediate}`}>
+                          {step.difficulty}
+                        </span>
+                      )}
+                      {step.mastered && <span className="text-xs font-semibold text-brand-800">Mastered</span>}
+                      {step.skipped && <span className="text-xs text-tertiary">Skipped</span>}
+                    </div>
+                    {step.definition && (
+                      <p className={`text-xs leading-relaxed ${step.isTarget ? 'text-sage-200' : 'text-tertiary'}`}>{step.definition}</p>
+                    )}
+                  </div>
+                  {step.finished && !step.mastered && (
+                    <button
+                      onClick={() => undoStep(step)}
+                      disabled={busy}
+                      aria-label={`Undo ${step.name}`}
+                      className={`shrink-0 text-xs font-semibold px-2 py-1 rounded-lg ${step.isTarget ? 'text-sage-200 hover:text-sage-50' : 'text-tertiary hover:text-primary'}`}
+                    >
+                      Undo
+                    </button>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
       )}
     </div>
   )

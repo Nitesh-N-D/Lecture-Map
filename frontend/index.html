@@ -4,14 +4,28 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
+    <script>
+      // Apply the stored theme before first paint so there is no flash of the wrong theme.
+      (function () {
+        try {
+          var s = localStorage.getItem('lecturemap-theme');
+          var dark = s === 'dark' || (s !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var r = document.documentElement;
+          r.setAttribute('data-theme', dark ? 'dark' : 'light');
+          r.style.colorScheme = dark ? 'dark' : 'light';
+          var m = document.querySelector('meta[name="theme-color"]');
+          if (m) m.setAttribute('content', dark ? '#102a22' : '#f3f8f1');
+        } catch (e) {}
+      })();
+    </script>
     <title>LectureMap | Turn Lectures Into Knowledge Maps</title>
     <meta name="title" content="LectureMap | Turn Lectures Into Knowledge Maps" />
     <meta name="description" content="Turn lecture audio, video, and PDFs into concept graphs, study paths, spaced-repetition flashcards, and exports from your own material." />
     <meta name="keywords" content="lecture notes, knowledge graph, concept map, study path, spaced repetition, flashcards, Anki export, AI study assistant, lecture transcription" />
     <meta name="author" content="LectureMap" />
     <meta name="robots" content="index, follow" />
-    <meta name="theme-color" content="#4f46e5" />
-    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#f3f8f1" />
+    <meta name="color-scheme" content="light dark" />
     <link rel="canonical" href="https://lecture-map.vercel.app/" />
 
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

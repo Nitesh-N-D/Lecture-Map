@@ -3,13 +3,14 @@ import { Link } from 'react-router-dom'
 import * as d3 from 'd3'
 import { api } from '../api/client'
 import { getNodeRadius, truncateLabel } from '../utils/d3helpers'
+import Icon from '../components/ui/Icon'
 import toast from 'react-hot-toast'
 
 // A distinct, deterministic color per lecture so the merged map reads as
 // "islands of lectures bridged by shared concepts" rather than one blob.
 const LECTURE_PALETTE = [
-  '#60a5fa', '#f472b6', '#4ade80', '#fbbf24', '#a78bfa',
-  '#fb923c', '#34d399', '#f87171', '#38bdf8', '#c084fc',
+  '#286347', '#4e9370', '#78a98a', '#2f7f6f', '#6b8e4e',
+  '#96c0a3', '#5f9f7e', '#8db580', '#347d59', '#a3c96b',
 ]
 
 function colorForLecture(lectureId, lectureIds) {
@@ -79,20 +80,20 @@ export default function AllLecturesGraph() {
     defs.append('marker').attr('id', 'merged-arrow')
       .attr('viewBox', '0 -5 10 10').attr('refX', 20).attr('refY', 0)
       .attr('markerWidth', 6).attr('markerHeight', 6).attr('orient', 'auto')
-      .append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', '#94a3b8').attr('opacity', 0.6)
+      .append('path').attr('d', 'M0,-5L10,0L0,5').attr('fill', 'var(--viz-edge)').attr('opacity', 0.6)
 
     const g = svg.append('g')
 
     // Bridge links — dashed, gold, no arrowhead (bidirectional concept identity, not prerequisite)
     const bridgeSel = g.append('g').selectAll('line').data(bridgeLinks).join('line')
-      .attr('stroke', '#f59e0b')
+      .attr('stroke', 'var(--viz-bridge)')
       .attr('stroke-width', 2)
       .attr('stroke-dasharray', '4 3')
       .attr('stroke-opacity', 0.7)
 
     // Prerequisite links
     const prereqSel = g.append('g').selectAll('line').data(prereqLinks).join('line')
-      .attr('stroke', '#94a3b8')
+      .attr('stroke', 'var(--viz-edge)')
       .attr('stroke-width', (d) => 1 + Math.round((d.strength || 0.5) * 2))
       .attr('stroke-opacity', 0.45)
       .attr('marker-end', 'url(#merged-arrow)')
@@ -116,14 +117,14 @@ export default function AllLecturesGraph() {
       .attr('r', (d) => getNodeRadius(d.difficulty) * 0.8)
       .attr('fill', (d) => colorForLecture(d.lecture_id, lectureIds))
       .attr('fill-opacity', (d) => d.is_visited ? 1 : 0.7)
-      .attr('stroke', '#fff')
+      .attr('stroke', 'var(--viz-node-ring)')
       .attr('stroke-width', 1.5)
 
     node.append('text')
       .attr('text-anchor', 'middle')
       .attr('dy', (d) => getNodeRadius(d.difficulty) * 0.8 + 12)
       .attr('font-size', '9px')
-      .attr('fill', 'var(--text-secondary, #475569)')
+      .attr('fill', 'var(--text-secondary, #3f5046)')
       .attr('pointer-events', 'none')
       .text((d) => truncateLabel(d.name, 14))
 
@@ -148,7 +149,7 @@ export default function AllLecturesGraph() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-56px)]">
+      <div className="flex items-center justify-center h-[calc(100dvh-112px)] lg:h-[calc(100dvh-56px)]">
         <div className="flex flex-col items-center gap-3 text-tertiary">
           <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
           <p className="text-sm">Merging your lectures into one map…</p>
@@ -160,13 +161,13 @@ export default function AllLecturesGraph() {
   if (!data || data.nodes.length === 0) {
     return (
       <div className="max-w-lg mx-auto px-4 py-20 text-center text-tertiary">
-        <p className="text-4xl mb-4">🧩</p>
+        <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-full bg-brand-100 text-brand-700"><Icon name="map" size={26} /></span>
         <p className="font-medium text-primary mb-2">Nothing to merge yet</p>
         <p className="text-sm">
           Once you have two or more completed lectures, LectureMap automatically
           links shared concepts across them into one unified knowledge map.
         </p>
-        <Link to="/dashboard" className="inline-block mt-4 text-sm text-brand-600 hover:text-brand-700 font-medium">
+        <Link to="/dashboard" className="inline-block mt-4 text-sm text-brand-700 hover:text-brand-900 font-semibold">
           ← Back to dashboard
         </Link>
       </div>
@@ -176,14 +177,14 @@ export default function AllLecturesGraph() {
   const bridgeCount = data.bridges?.length || 0
 
   return (
-    <div className="flex flex-col h-[calc(100vh-56px)]">
+    <div className="flex flex-col h-[calc(100dvh-112px)] lg:h-[calc(100dvh-56px)]">
       <div className="px-4 py-3 border-b surface-border surface-card flex items-center gap-4 shrink-0">
         <div>
-          <h1 className="text-base font-semibold text-primary">Your Knowledge Map</h1>
+          <h1 className="text-xl font-semibold text-primary">Your Knowledge Map</h1>
           <p className="text-xs text-tertiary mt-0.5">
             {data.lecture_count} lectures · {data.nodes.length} concepts ·{' '}
             {bridgeCount > 0 ? (
-              <span className="text-amber-600 font-medium">{bridgeCount} shared-concept bridges</span>
+              <span className="text-brand-700 font-semibold">{bridgeCount} shared-concept bridges</span>
             ) : (
               'no overlapping concepts yet'
             )}
@@ -207,8 +208,8 @@ export default function AllLecturesGraph() {
       <div ref={containerRef} className="flex-1 relative surface-bg overflow-hidden">
         <svg ref={svgRef} width={dims.width} height={dims.height} className="w-full h-full" />
         {bridgeCount > 0 && (
-          <div className="absolute bottom-4 left-4 surface-card border surface-border rounded-lg px-3 py-2 text-xs text-secondary flex items-center gap-2">
-            <span className="w-4 border-t-2 border-dashed border-amber-500" />
+          <div className="absolute bottom-4 left-4 card !rounded-xl px-3 py-2 text-xs text-secondary flex items-center gap-2">
+            <span className="w-4 border-t-2 border-dashed border-brand-600" />
             Shared concept across lectures
           </div>
         )}

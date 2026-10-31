@@ -23,16 +23,16 @@ export function getEasinessLabel(ef) {
 }
 
 export function getEasinessColor(ef) {
-  if (ef >= 2.5) return '#4ade80'
-  if (ef >= 2.0) return '#facc15'
-  return '#f87171'
+  if (ef >= 2.5) return 'var(--viz-main)'
+  if (ef >= 2.0) return 'var(--viz-mid)'
+  return 'var(--viz-gap)'
 }
 
 export const QUALITY_LABELS = {
-  0: { label: 'Again', color: '#ef4444', description: 'Completely forgot' },
-  2: { label: 'Hard', color: '#f97316', description: 'Significant difficulty' },
-  3: { label: 'Good', color: '#3b82f6', description: 'Recalled with some effort' },
-  5: { label: 'Easy', color: '#22c55e', description: 'Perfect recall' },
+  0: { label: 'Again', color: 'var(--viz-gap)', description: 'Completely forgot' },
+  2: { label: 'Hard', color: 'var(--viz-soft)', description: 'Significant difficulty' },
+  3: { label: 'Good', color: 'var(--viz-mid)', description: 'Recalled with some effort' },
+  5: { label: 'Easy', color: 'var(--viz-main)', description: 'Perfect recall' },
 }
 
 export function formatInterval(days) {

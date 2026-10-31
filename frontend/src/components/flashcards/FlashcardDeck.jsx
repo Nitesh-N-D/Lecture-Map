@@ -2,6 +2,7 @@ import { useState } from 'react'
 import ReviewCard from './ReviewCard'
 import { api } from '../../api/client'
 import useStore from '../../store/useStore'
+import Icon from '../ui/Icon'
 import toast from 'react-hot-toast'
 
 export default function FlashcardDeck({ cards, onComplete }) {
@@ -33,8 +34,8 @@ export default function FlashcardDeck({ cards, onComplete }) {
   if (done) {
     return (
       <div className="flex flex-col items-center gap-4 py-12 text-center">
-        <span className="text-5xl">🎉</span>
-        <h3 className="text-xl font-semibold text-primary">Session complete!</h3>
+        <span className="grid h-16 w-16 place-items-center rounded-full bg-brand-100 text-brand-700"><Icon name="party" size={30} /></span>
+        <h3 className="font-display text-2xl font-semibold text-primary">Session complete!</h3>
         <p className="text-secondary text-sm">You reviewed {reviewed} card{reviewed !== 1 ? 's' : ''}.</p>
         <button
           onClick={() => {
@@ -43,7 +44,7 @@ export default function FlashcardDeck({ cards, onComplete }) {
             setDone(false)
             setReviewed(0)
           }}
-          className="mt-2 text-sm text-brand-600 hover:text-brand-700 font-medium"
+          className="mt-2 text-sm text-brand-700 hover:text-brand-900 font-semibold"
         >
           Review again ↺
         </button>

@@ -2,29 +2,117 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Light design tokens */
+/* Design tokens: "Forest Intelligence". Colour scales live in styles/scales.css (generated);
+   the semantic surface / text / action tokens below are what components should reach for. */
 :root {
-  --surface-bg: #f8fafc;
-  --surface-card: #ffffff;
-  --surface-card-hover: #f8fafc;
-  --surface-border: #e2e8f0;
-  --surface-border-strong: #cbd5e1;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-tertiary: #64748b; /* 4.8:1 on white (AA); was #94a3b8 at 2.6:1 */
-  --focus-ring: #4338ca;
-  --atlas-ink: #0b1020;
-  --atlas-glow: #6366f1;
-  --atlas-teal: #0f766e;
-  --surface-overlay: rgba(15, 23, 42, 0.4);
+  /* Sage Light */
+  --background: #f3f8f1;
+  --background-secondary: #e5f0e5;
+  --surface: #ffffff;
+  --surface-elevated: #ffffff;
+  --surface-muted: #edf4eb;
+  --accent: #78a98a;
+  --accent-soft: #dcebdd;
+  --border: #d5e2d5;
+  --text-primary: #17251d;
+  --text-secondary: #3f5046; /* darker than the #65756a brief value: 8.4:1 on white, AA on every surface */
+  --text-tertiary: #5a6b60; /* 5.6:1 on white, 5.0:1 on --background */
+
+  /* Aliases used by existing components. */
+  --surface-bg: var(--background);
+  --surface-card: var(--surface);
+  --surface-card-hover: var(--surface-muted);
+  --surface-border: var(--border);
+  --surface-border-strong: #a9bfae;
+  --focus-ring: #286347;
+  --surface-overlay: rgba(16, 42, 34, 0.38);
+
+  --primary: 29 73 55; /* #1d4937 */
+  --primary-hover: 40 99 71; /* #286347 */
+  --primary-active: 21 56 43; /* #15382b */
+  --on-primary: 255 255 255;
+  --on-accent: 16 42 34;
+  --danger: 185 28 28;
+  --on-danger: 255 255 255;
+  --atlas-ink: #102a22;
+  --shadow-rgb: 16 42 34;
+  --glow-rgb: 120 169 138;
+
+  /* Data-visualisation colours (graph, charts, heatmap). Forest family only; red is reserved for gaps. */
+  --viz-strong: #1d4937;
+  --viz-main: #286347;
+  --viz-mid: #4e9370;
+  --viz-soft: #96c0a3;
+  --viz-faint: #cfe3d2;
+  --viz-track: #d5e2d5;
+  --viz-edge: #7c8e82;
+  --viz-node-label: #f3f8f1;
+  --viz-node-ring: #ffffff;
+  --viz-gap: #dc2626;
+  --viz-bridge: #1d4937;
+  --diff-beginner: #96c0a3;
+  --diff-intermediate: #4e9370;
+  --diff-advanced: #1d4937;
+  --diff-beginner-ink: #102a22;
+  --diff-intermediate-ink: #102a22;
+  --diff-advanced-ink: #f3f8f1;
   color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  /* Forest Dark */
+  --background: #102a22;
+  --background-secondary: #15382b;
+  --surface: #183a2d;
+  --surface-elevated: #1d4937;
+  --surface-muted: #214d3b;
+  --accent: #b9d6bf;
+  --accent-soft: #24493a;
+  --border: #2f5e49;
+  --text-primary: #f3f8f1;
+  --text-secondary: #b9cbbb;
+  --text-tertiary: #9db8a8; /* 5.9:1 on --surface */
+
+  --surface-border-strong: #4a7a64;
+  --focus-ring: #b9d6bf;
+  --surface-overlay: rgba(5, 16, 12, 0.6);
+
+  --primary: 120 169 138; /* #78a98a */
+  --primary-hover: 155 197 165; /* #9bc5a5 */
+  --primary-active: 185 214 191;
+  --on-primary: 16 42 34;
+  --on-accent: 16 42 34;
+  --danger: 248 113 113;
+  --on-danger: 16 20 18;
+  --atlas-ink: #0b1f19;
+  --shadow-rgb: 0 0 0;
+  --glow-rgb: 120 169 138;
+
+  --viz-strong: #e5f0e5;
+  --viz-main: #b9d6bf;
+  --viz-mid: #78a98a;
+  --viz-soft: #347d59;
+  --viz-faint: #24493a;
+  --viz-track: #2f5e49;
+  --viz-edge: #78a98a;
+  --viz-node-label: #102a22;
+  --viz-node-ring: #102a22;
+  --viz-gap: #f87171;
+  --viz-bridge: #b9d6bf;
+  --diff-beginner: #96c0a3;
+  --diff-intermediate: #78a98a;
+  --diff-advanced: #e5f0e5;
+  --diff-beginner-ink: #102a22;
+  --diff-intermediate-ink: #102a22;
+  --diff-advanced-ink: #102a22;
+  color-scheme: dark;
 }
 
 @layer base {
   :focus-visible {
     outline: 3px solid var(--focus-ring);
     outline-offset: 2px;
-    border-radius: 4px;
+    border-radius: 6px;
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -41,14 +129,54 @@
   }
 
   body {
-    @apply antialiased;
+    @apply antialiased font-sans;
     background-color: var(--surface-bg);
     color: var(--text-primary);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  h1, h2 {
+    font-family: 'Fraunces Variable', ui-serif, Georgia, serif;
+    letter-spacing: -0.015em;
+  }
+
+  ::selection {
+    background: rgb(var(--c-brand-200));
+    color: #102a22;
   }
 
   html, body, #root {
     height: 100%;
+  }
+}
+
+@layer components {
+  /* A raised sheet of paper. */
+  .card {
+    background-color: var(--surface-card);
+    border: 1px solid var(--surface-border);
+    border-radius: 1.25rem;
+    @apply shadow-paper;
+  }
+  .card-interactive {
+    @apply transition duration-200;
+  }
+  .card-interactive:hover {
+    border-color: rgb(var(--c-brand-400));
+    @apply shadow-lift -translate-y-px;
+  }
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.16em] text-brand-700;
+  }
+  .field {
+    @apply w-full rounded-xl border px-3.5 py-2.5 text-sm text-slate-900 transition placeholder:text-slate-500;
+    background-color: var(--surface-card);
+    border-color: var(--surface-border-strong);
+  }
+  .field:focus {
+    @apply outline-none border-brand-500 ring-4 ring-brand-100;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium;
   }
 }
 
@@ -63,7 +191,7 @@
   .text-tertiary { color: var(--text-tertiary); }
 
   .animate-fade-in {
-    animation: fadeIn 0.3s ease-in;
+    animation: fadeIn 0.35s ease-out both;
   }
 
   .animate-slide-in {
@@ -71,7 +199,7 @@
   }
 
   .animate-scale-in {
-    animation: scaleIn 0.15s ease-out;
+    animation: scaleIn 0.18s ease-out;
   }
 
   .shimmer-bg {
@@ -87,7 +215,7 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -97,7 +225,7 @@
 }
 
 @keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.95); }
+  from { opacity: 0; transform: scale(0.96); }
   to { opacity: 1; transform: scale(1); }
 }
 
@@ -117,13 +245,13 @@
 }
 
 .cmdk-overlay {
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--surface-border-strong); border-radius: 3px; }
+::-webkit-scrollbar-thumb { background: var(--surface-border-strong); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
 
 .skip-link {
@@ -134,13 +262,51 @@
   padding: 0.5rem 1rem;
   background: var(--atlas-ink);
   color: #fff;
-  border-radius: 0.5rem;
+  border-radius: 0.75rem;
 }
 .skip-link:focus { top: 0.5rem; }
 
+/* Landing hero: a faint contour-line grid with a sage glow. */
 .atlas-hero {
+  position: relative;
   background:
-    radial-gradient(60rem 30rem at 85% -10%, rgba(99, 102, 241, 0.18), transparent 60%),
-    radial-gradient(40rem 24rem at 0% 110%, rgba(15, 118, 110, 0.12), transparent 60%),
-    #f8fafc;
+    radial-gradient(44rem 26rem at 90% -10%, rgb(var(--glow-rgb) / 0.28), transparent 60%),
+    var(--surface-bg);
+}
+.atlas-hero::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgb(var(--c-brand-600) / 0.22) 1px, transparent 1px);
+  background-size: 22px 22px;
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 85%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 85%);
+  pointer-events: none;
+}
+
+/* Keep hero content above the decorative layers. */
+.atlas-hero > * { position: relative; z-index: 1; }
+
+/* Knowledge-network motif behind the hero: connected nodes, tinted per theme. */
+.atlas-hero::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='360' viewBox='0 0 520 360' fill='none' stroke='%23286347' stroke-opacity='.16' stroke-width='1.2'%3E%3Cpath d='M40 300 120 220 210 250 300 160 400 190 480 90M120 220 140 120 240 80 300 160M210 250 330 300 400 190M240 80 340 40 480 90'/%3E%3Cg fill='%23286347' fill-opacity='.22' stroke='none'%3E%3Ccircle cx='40' cy='300' r='5'/%3E%3Ccircle cx='120' cy='220' r='7'/%3E%3Ccircle cx='210' cy='250' r='5'/%3E%3Ccircle cx='300' cy='160' r='8'/%3E%3Ccircle cx='400' cy='190' r='5'/%3E%3Ccircle cx='480' cy='90' r='7'/%3E%3Ccircle cx='140' cy='120' r='5'/%3E%3Ccircle cx='240' cy='80' r='6'/%3E%3Ccircle cx='330' cy='300' r='5'/%3E%3Ccircle cx='340' cy='40' r='5'/%3E%3C/g%3E%3C/svg%3E");
+  background-size: 520px 360px;
+  background-position: right -40px bottom -20px;
+  background-repeat: no-repeat;
+  pointer-events: none;
+}
+:root[data-theme='dark'] .atlas-hero::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='520' height='360' viewBox='0 0 520 360' fill='none' stroke='%23b9d6bf' stroke-opacity='.16' stroke-width='1.2'%3E%3Cpath d='M40 300 120 220 210 250 300 160 400 190 480 90M120 220 140 120 240 80 300 160M210 250 330 300 400 190M240 80 340 40 480 90'/%3E%3Cg fill='%23b9d6bf' fill-opacity='.22' stroke='none'%3E%3Ccircle cx='40' cy='300' r='5'/%3E%3Ccircle cx='120' cy='220' r='7'/%3E%3Ccircle cx='210' cy='250' r='5'/%3E%3Ccircle cx='300' cy='160' r='8'/%3E%3Ccircle cx='400' cy='190' r='5'/%3E%3Ccircle cx='480' cy='90' r='7'/%3E%3Ccircle cx='140' cy='120' r='5'/%3E%3Ccircle cx='240' cy='80' r='6'/%3E%3Ccircle cx='330' cy='300' r='5'/%3E%3Ccircle cx='340' cy='40' r='5'/%3E%3C/g%3E%3C/svg%3E");
+}
+
+/* Always-dark forest panel, in both themes. Use fixed sage-* text colours inside it. */
+.ink-panel {
+  background:
+    radial-gradient(30rem 16rem at 100% 0%, rgb(var(--glow-rgb) / 0.25), transparent 60%),
+    #15382b;
+  color: #e5f0e5;
+  border: 1px solid rgb(185 214 191 / 0.14);
 }

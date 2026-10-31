@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { clearAllSessions } from '../lib/studyPath'
 
 const useStore = create(
   persist(
@@ -14,7 +15,8 @@ const useStore = create(
       setAuth: (user, token) =>
         set({ user, token, isAuthenticated: true }),
 
-      logout: () =>
+      logout: () => {
+        clearAllSessions()
         set({
           user: null,
           token: null,
@@ -29,7 +31,8 @@ const useStore = create(
           reviewStats: null,
           // Activity is per account; do not leave it behind on a shared device.
           activityLog: {},
-        }),
+        })
+      },
 
       lectures: [],
       currentLecture: null,

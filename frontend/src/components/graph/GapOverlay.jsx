@@ -8,7 +8,7 @@ export default function GapOverlay({ gaps = [], onNodeClick }) {
 
   return (
     <div className="absolute top-3 left-3 z-20 max-w-xs animate-fade-in">
-      <div className="bg-red-50 border border-red-200 rounded-xl shadow-sm overflow-hidden">
+      <div className="bg-red-50 border border-red-200 rounded-2xl shadow-lift overflow-hidden">
         {/* Header */}
         <div className="flex items-center gap-2 px-3 py-2 bg-red-100/60 border-b border-red-200">
           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse shrink-0" />

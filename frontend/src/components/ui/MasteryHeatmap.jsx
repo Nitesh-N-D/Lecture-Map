@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react'
 
 /**
- * GitHub-contributions-style activity heatmap built from the local
- * activityLog kept in the Zustand store (logged on every flashcard
- * review). Pure client-side — no backend aggregation needed, and it
- * renders instantly since it never blocks on a network round trip.
+ * GitHub-contributions-style activity heatmap. activityLog maps UTC ISO dates
+ * to review counts and comes from the server-side review log (GET /review/history),
+ * so it is the same on every device.
  */
 export default function MasteryHeatmap({ activityLog = {} }) {
   const [hovered, setHovered] = useState(null)
@@ -52,14 +51,14 @@ export default function MasteryHeatmap({ activityLog = {} }) {
 
   const LEVEL_COLORS = {
     'level-0': 'var(--surface-border)',
-    'level-1': '#a7f3d0',
-    'level-2': '#4ade80',
-    'level-3': '#16a34a',
-    'level-4': '#15803d',
+    'level-1': 'var(--viz-faint)',
+    'level-2': 'var(--viz-soft)',
+    'level-3': 'var(--viz-mid)',
+    'level-4': 'var(--viz-main)',
   }
 
   return (
-    <div className="surface-card border surface-border rounded-xl p-4">
+    <div className="card p-5">
       <div className="flex items-center justify-between mb-3">
         <div>
           <p className="text-sm font-semibold text-primary">Study activity</p>

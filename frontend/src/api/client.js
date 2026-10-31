@@ -56,6 +56,9 @@ export const api = {
   login: (email, password) => client.post('/auth/login', { email, password }),
   getMe: () => client.get('/auth/me'),
   exportMyData: () => client.get('/auth/me/export', { responseType: 'blob' }),
+  getGeminiKey: () => client.get('/settings/gemini-key'),
+  saveGeminiKey: (apiKey) => client.put('/settings/gemini-key', { api_key: apiKey }),
+  deleteGeminiKey: () => client.delete('/settings/gemini-key'),
   deleteAccount: (password) =>
     client.delete('/auth/me', { data: { confirm: 'DELETE', password } }),
 
@@ -90,6 +93,8 @@ export const api = {
   getDueCards: () => client.get('/review/due'),
   reviewCard: (cardId, quality) => client.post(`/review/${cardId}`, { quality }),
   getReviewStats: () => client.get('/review/stats'),
+  getReviewHistory: (days = 126) => client.get('/review/history', { params: { days } }),
+  getProgressSummary: () => client.get('/progress/summary'),
 
   // Export
   exportAnki: (lectureId) =>

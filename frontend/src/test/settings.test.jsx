@@ -26,6 +26,38 @@ describe('Settings page', () => {
     expect(button).toBeEnabled()
   })
 
+  it('saves a Gemini key, shows only the last four characters and never echoes the key', async () => {
+    vi.spyOn(api, 'getGeminiKey').mockResolvedValue({ data: { configured: false } })
+    const save = vi.spyOn(api, 'saveGeminiKey').mockResolvedValue({ data: { configured: true, last4: 'wxyz' } })
+    mount({ id: 'u', email: 'a@b.c', has_password: true })
+    const input = screen.getByLabelText('Gemini API key')
+    const button = screen.getByRole('button', { name: 'Save key' })
+    expect(button).toBeDisabled()
+    await userEvent.type(input, 'AIza-test-key-0000000000wxyz')
+    await userEvent.click(button)
+    expect(save).toHaveBeenCalledWith('AIza-test-key-0000000000wxyz')
+    expect(await screen.findByRole('status')).toHaveTextContent('wxyz')
+    expect(input).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Remove key' })).toBeVisible()
+  })
+
+  it('shows the server message when a Gemini key is rejected', async () => {
+    vi.spyOn(api, 'getGeminiKey').mockResolvedValue({ data: { configured: false } })
+    vi.spyOn(api, 'saveGeminiKey').mockRejectedValue({ response: { status: 400, data: { detail: 'Google rejected this key.' } } })
+    mount({ id: 'u', email: 'a@b.c', has_password: true })
+    await userEvent.type(screen.getByLabelText('Gemini API key'), 'x'.repeat(24))
+    await userEvent.click(screen.getByRole('button', { name: 'Save key' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Google rejected this key.')
+  })
+
+  it('persists the chosen theme', async () => {
+    vi.spyOn(api, 'getGeminiKey').mockResolvedValue({ data: { configured: false } })
+    mount({ id: 'u', email: 'a@b.c', has_password: true })
+    await userEvent.click(screen.getByRole('radio', { name: /Dark/ }))
+    expect(screen.getByRole('radio', { name: /Dark/ })).toHaveAttribute('aria-checked', 'true')
+    expect(localStorage.getItem('lecturemap-theme')).toBe('dark')
+  })
+
   it('does not ask for a password on Google-only accounts', () => {
     mount({ id: 'u', email: 'a@b.c', has_password: false })
     expect(screen.queryByLabelText('Current password')).toBeNull()

@@ -2,12 +2,13 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../../api/client'
 import useStore from '../../store/useStore'
+import Icon from '../ui/Icon'
 import toast from 'react-hot-toast'
 
 const DIFFICULTY_BADGE = {
-  beginner: 'bg-green-100 text-green-700',
-  intermediate: 'bg-blue-100 text-blue-700',
-  advanced: 'bg-pink-100 text-pink-700',
+  beginner: 'bg-brand-100 text-brand-800',
+  intermediate: 'bg-brand-200 text-brand-900',
+  advanced: 'bg-brand-800 text-sage-50',
 }
 
 export default function NodePanel({ node, onClose, lectureId }) {
@@ -76,13 +77,13 @@ export default function NodePanel({ node, onClose, lectureId }) {
 
   return (
     <div
-      className="w-80 surface-card border-l surface-border flex flex-col shadow-lg animate-slide-in overflow-y-auto transition-colors"
+      className="w-80 shrink-0 surface-card border-l surface-border flex flex-col shadow-lift animate-slide-in overflow-y-auto transition-colors"
       style={{ maxHeight: '100%' }}
     >
       {/* Header */}
       <div className="flex items-start justify-between p-4 border-b surface-border">
         <div className="flex-1 pr-2">
-          <h2 className="font-semibold text-primary text-base leading-snug">{node.name}</h2>
+          <h2 className="font-display font-semibold text-primary text-xl leading-snug">{node.name}</h2>
           <span className={`mt-1 inline-block text-xs font-medium px-2 py-0.5 rounded-full ${DIFFICULTY_BADGE[node.difficulty] || DIFFICULTY_BADGE.intermediate}`}>
             {node.difficulty}
           </span>
@@ -102,7 +103,7 @@ export default function NodePanel({ node, onClose, lectureId }) {
         {node.timestamp_seconds > 0 && (
           <div>
             <p className="text-xs font-semibold text-tertiary uppercase tracking-wide mb-1">Introduced at</p>
-            <span className="text-sm text-brand-600 font-mono">
+            <span className="text-sm text-brand-700 font-mono">
               {formatTime(node.timestamp_seconds)}
             </span>
           </div>
@@ -150,11 +151,11 @@ export default function NodePanel({ node, onClose, lectureId }) {
 
         {/* Inline flashcard */}
         {flashcard && (
-          <div className="bg-brand-50 border border-brand-200 rounded-lg p-3">
+          <div className="bg-brand-50 border border-brand-200 rounded-xl p-3">
             <p className="text-xs font-semibold text-brand-700 mb-1">Flashcard</p>
             <p className="text-sm font-medium text-primary mb-2">Q: {flashcard.question}</p>
             <details>
-              <summary className="text-xs text-brand-600 cursor-pointer">Show answer</summary>
+              <summary className="text-xs text-brand-700 font-semibold cursor-pointer">Show answer</summary>
               <p className="text-sm text-secondary mt-1.5">A: {flashcard.answer}</p>
             </details>
           </div>
@@ -166,10 +167,10 @@ export default function NodePanel({ node, onClose, lectureId }) {
         <button
           onClick={handleMarkStudied}
           disabled={isVisited}
-          className={`w-full text-sm py-2 rounded-lg font-medium transition-colors ${
+          className={`w-full text-sm py-2.5 rounded-xl font-semibold transition-colors ${
             isVisited
-              ? 'bg-green-50 text-green-600 border border-green-200 cursor-default'
-              : 'bg-brand-600 text-white hover:bg-brand-700'
+              ? 'bg-brand-50 text-brand-800 border border-brand-200 cursor-default'
+              : 'bg-primary text-on-primary hover:bg-primary-hover shadow-paper'
           }`}
         >
           {isVisited ? '✓ Studied' : 'Mark as studied'}
@@ -179,14 +180,14 @@ export default function NodePanel({ node, onClose, lectureId }) {
           {!flashcard && (
             <button
               onClick={handleLoadFlashcard}
-              className="flex-1 text-sm py-2 rounded-lg font-medium border surface-border text-secondary hover:surface-card-hover transition-colors"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 text-sm py-2 rounded-xl font-semibold border surface-border bg-[var(--surface-card)] text-secondary hover:border-brand-400 transition-colors"
             >
               View flashcard
             </button>
           )}
           <button
             onClick={handleAddToStudyPath}
-            className="flex-1 text-sm py-2 rounded-lg font-medium border surface-border text-secondary hover:surface-card-hover transition-colors"
+            className="flex-1 inline-flex items-center justify-center gap-1.5 text-sm py-2 rounded-xl font-semibold border surface-border bg-[var(--surface-card)] text-secondary hover:border-brand-400 transition-colors"
           >
             🗺️ Study path
           </button>
@@ -198,12 +199,12 @@ export default function NodePanel({ node, onClose, lectureId }) {
 
 function ConceptChip({ node, visited }) {
   return (
-    <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs ${
+    <div className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs ${
       visited
-        ? 'bg-green-50 text-green-700'
+        ? 'bg-brand-50 text-brand-800'
         : 'surface-bg text-secondary'
     }`}>
-      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${visited ? 'bg-green-500' : 'bg-[var(--surface-border-strong)]'}`} />
+      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${visited ? 'bg-brand-600' : 'bg-[var(--surface-border-strong)]'}`} />
       <span className="truncate">{node.name}</span>
       {visited && <span className="ml-auto shrink-0">✓</span>}
     </div>

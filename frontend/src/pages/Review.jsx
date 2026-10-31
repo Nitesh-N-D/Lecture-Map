@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import useStore from '../store/useStore'
 import ReviewCard from '../components/flashcards/ReviewCard'
+import Icon from '../components/ui/Icon'
 import toast from 'react-hot-toast'
 
 export default function Review() {
@@ -56,47 +57,48 @@ export default function Review() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="w-8 h-8 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
+        <div role="status" aria-label="Loading review queue" className="w-8 h-8 border-2 border-brand-200 border-t-brand-700 rounded-full animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10 animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-primary">Daily review</h1>
+          <p className="eyebrow">Spaced repetition</p>
+          <h1 className="text-4xl font-semibold text-primary mt-1">Daily review</h1>
           {reviewStats && (
             <p className="text-secondary text-sm mt-0.5">
               {reviewStats.cards_reviewed_today} reviewed today · {reviewStats.cards_due_today} in queue
             </p>
           )}
         </div>
-        <Link to="/dashboard" className="text-sm text-secondary hover:text-primary">
-          ← Dashboard
+        <Link to="/dashboard" className="inline-flex items-center gap-1.5 text-sm font-semibold text-secondary hover:text-primary">
+          <Icon name="arrowLeft" size={15} /> Dashboard
         </Link>
       </div>
 
       {/* Stats row */}
       {reviewStats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-          <div className="surface-card border surface-border rounded-xl p-3 text-center">
-            <p className="text-xl font-bold text-brand-600">{reviewStats.cards_reviewed_today}</p>
+          <div className="card !rounded-2xl p-3 text-center">
+            <p className="font-display text-2xl font-semibold text-brand-700">{reviewStats.cards_reviewed_today}</p>
             <p className="text-xs text-tertiary mt-0.5">Reviewed today</p>
           </div>
-          <div className="surface-card border surface-border rounded-xl p-3 text-center">
-            <p className="text-xl font-bold text-green-600">{sessionCount}</p>
+          <div className="card !rounded-2xl p-3 text-center">
+            <p className="font-display text-2xl font-semibold text-emerald-700">{sessionCount}</p>
             <p className="text-xs text-tertiary mt-0.5">This session</p>
           </div>
-          <div className="surface-card border surface-border rounded-xl p-3 text-center">
-            <p className="text-xl font-bold text-amber-500">
-              {reviewStats.streak_days}{reviewStats.streak_days > 0 ? ' 🔥' : ''}
+          <div className="card !rounded-2xl p-3 text-center">
+            <p className="font-display text-2xl font-semibold text-accent-600 inline-flex items-center justify-center gap-1">
+              {reviewStats.streak_days}{reviewStats.streak_days > 0 && <Icon name="flame" size={18} label="streak" />}
             </p>
             <p className="text-xs text-tertiary mt-0.5">Day streak</p>
           </div>
-          <div className="surface-card border surface-border rounded-xl p-3 text-center">
-            <p className="text-xl font-bold text-primary">{reviewStats.total_cards}</p>
+          <div className="card !rounded-2xl p-3 text-center">
+            <p className="font-display text-2xl font-semibold text-primary">{reviewStats.total_cards}</p>
             <p className="text-xs text-tertiary mt-0.5">Total cards</p>
           </div>
         </div>
@@ -105,8 +107,8 @@ export default function Review() {
       {/* Review area */}
       {done ? (
         <div className="flex flex-col items-center py-16 text-center">
-          <span className="text-6xl mb-4">🎉</span>
-          <h2 className="text-2xl font-bold text-primary mb-2">All done!</h2>
+          <span className="mb-5 grid h-20 w-20 place-items-center rounded-full bg-brand-100 text-brand-700"><Icon name="party" size={38} /></span>
+          <h2 className="text-4xl font-semibold text-primary mb-2">All done!</h2>
           <p className="text-secondary text-sm mb-6">
             {sessionCount > 0
               ? `You reviewed ${sessionCount} card${sessionCount !== 1 ? 's' : ''} this session.`
@@ -115,7 +117,7 @@ export default function Review() {
 
           {/* Upcoming due */}
           {reviewStats?.upcoming_due && (
-            <div className="w-full max-w-sm surface-card border surface-border rounded-xl p-4 text-left">
+            <div className="w-full max-w-sm card p-5 text-left">
               <p className="text-sm font-semibold text-primary mb-3">Upcoming reviews</p>
               <div className="flex flex-col gap-2">
                 {Object.entries(reviewStats.upcoming_due)
@@ -124,7 +126,7 @@ export default function Review() {
                   .map(([date, count]) => (
                     <div key={date} className="flex items-center justify-between text-sm">
                       <span className="text-secondary">{formatDate(date)}</span>
-                      <span className="text-brand-600 font-medium">{count} card{count !== 1 ? 's' : ''}</span>
+                      <span className="text-brand-700 font-semibold">{count} card{count !== 1 ? 's' : ''}</span>
                     </div>
                   ))}
                 {Object.values(reviewStats.upcoming_due).every((v) => v === 0) && (
@@ -136,9 +138,9 @@ export default function Review() {
 
           <Link
             to="/dashboard"
-            className="mt-6 text-sm text-brand-600 font-medium hover:text-brand-700"
+            className="mt-6 inline-flex items-center gap-1.5 text-sm text-brand-700 font-semibold hover:text-brand-900"
           >
-            Back to dashboard →
+            Back to dashboard <Icon name="arrowRight" size={15} />
           </Link>
         </div>
       ) : (

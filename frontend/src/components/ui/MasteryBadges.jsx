@@ -1,7 +1,9 @@
+import Icon from './Icon'
+
 const BADGE_DEFS = [
-  { tier: 'beginner', icon: '🌱', label: 'Foundations', color: '#4ade80' },
-  { tier: 'intermediate', icon: '⚡', label: 'Builder', color: '#60a5fa' },
-  { tier: 'advanced', icon: '🏆', label: 'Master', color: '#f472b6' },
+  { tier: 'beginner', icon: 'seedling', label: 'Foundations', color: 'var(--viz-soft)' },
+  { tier: 'intermediate', icon: 'bolt', label: 'Builder', color: 'var(--viz-mid)' },
+  { tier: 'advanced', icon: 'trophy', label: 'Master', color: 'var(--viz-main)' },
 ]
 
 /**
@@ -24,9 +26,10 @@ export default function MasteryBadges({ nodes = [], visitedIds = new Set(), comp
           <span
             key={b.tier}
             title={`${b.label}: ${b.visited}/${b.total} ${b.tier} concepts studied`}
-            className={`text-sm transition-all ${b.complete ? '' : 'opacity-20 grayscale'}`}
+            className={`transition-all ${b.complete ? '' : 'opacity-25'}`}
+            style={{ color: b.color }}
           >
-            {b.icon}
+            <Icon name={b.icon} size={16} />
           </span>
         ))}
       </div>
@@ -38,16 +41,16 @@ export default function MasteryBadges({ nodes = [], visitedIds = new Set(), comp
       {earned.map((b) => (
         <div
           key={b.tier}
-          className={`flex flex-col items-center gap-1 px-3 py-2.5 rounded-xl border transition-all ${
+          className={`flex flex-col items-center gap-1 px-4 py-3 rounded-2xl border bg-[var(--surface-card)] transition-all ${
             b.complete
               ? 'surface-card-hover border-current animate-float'
-              : 'surface-border opacity-40'
+              : 'surface-border border-dashed'
           }`}
           style={b.complete ? { borderColor: b.color, color: b.color } : {}}
         >
-          <span className="text-xl">{b.icon}</span>
-          <span className="text-[10px] font-semibold text-primary">{b.label}</span>
-          <span className="text-[10px] text-tertiary">{b.visited}/{b.total}</span>
+          <Icon name={b.icon} size={24} />
+          <span className="text-xs font-semibold text-primary">{b.label}</span>
+          <span className="text-xs text-tertiary">{b.visited}/{b.total}</span>
         </div>
       ))}
     </div>

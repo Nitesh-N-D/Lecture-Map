@@ -1,4 +1,5 @@
 import { Component } from 'react'
+import Icon from './Icon'
 
 /**
  * Catches render-time errors anywhere in the route tree and shows a
@@ -31,8 +32,8 @@ export default class ErrorBoundary extends Component {
       return (
         <div className="min-h-[60vh] flex items-center justify-center px-4">
           <div className="max-w-md text-center">
-            <div className="text-5xl mb-4">🗺️💥</div>
-            <h2 className="text-xl font-semibold text-primary mb-2">
+            <span className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-accent-100 text-accent-700"><Icon name="alert" size={30} /></span>
+            <h2 className="text-3xl font-semibold text-primary mb-2">
               Something went off the map
             </h2>
             <p className="text-sm text-secondary mb-6">
@@ -42,13 +43,13 @@ export default class ErrorBoundary extends Component {
             <div className="flex items-center justify-center gap-3">
               <button
                 onClick={this.handleReset}
-                className="bg-brand-600 text-white text-sm px-4 py-2 rounded-lg font-medium hover:bg-brand-700 transition-colors"
+                className="bg-primary text-on-primary text-sm px-5 h-11 rounded-xl font-semibold shadow-paper hover:bg-primary-hover transition-colors"
               >
                 Try again
               </button>
               <button
                 onClick={() => { window.location.href = '/dashboard' }}
-                className="text-sm text-secondary hover:text-primary transition-colors"
+                className="text-sm font-semibold text-secondary hover:text-primary transition-colors"
               >
                 Back to dashboard
               </button>

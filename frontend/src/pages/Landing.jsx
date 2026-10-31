@@ -7,6 +7,15 @@ import UploadZone from '../components/upload/UploadZone'
 import Button from '../components/ui/Button'
 import toast from 'react-hot-toast'
 import Seo from '../components/ui/Seo'
+import Icon from '../components/ui/Icon'
+
+const ICONS = ['upload', 'file', 'lock', 'sparkle', 'target', 'graph', 'route', 'cards', 'flame', 'download']
+
+const WORKFLOW = [
+  ['Upload', 'Add an audio, video or PDF file. Recordings are transcribed first.'],
+  ['Build', 'Concepts, definitions and their dependencies are extracted into a knowledge graph with flashcards.'],
+  ['Study', 'Follow a study path, take the Aha Path, and review what is due each day.'],
+]
 
 const FEATURES = [
   ['Audio and video upload', 'Bring recordings in common lecture formats up to 200MB.'],
@@ -40,20 +49,20 @@ export default function Landing() {
   const authError = searchParams.get('auth_error')
 
   return (
-    <div className="bg-white text-slate-950">
+    <div className="text-slate-950">
       <Seo
         title="LectureMap | Turn Lectures Into Knowledge Maps"
         description="Turn lecture audio, video and PDFs into concept graphs, study paths and spaced-repetition flashcards, built from your own material."
         path="/"
       />
-      <section className="border-b border-slate-200 atlas-hero">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-14 lg:py-20 grid lg:grid-cols-[1.1fr_0.9fr] gap-10 lg:gap-14 items-center">
+      <section className="border-b surface-border atlas-hero">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-14 lg:py-24 grid lg:grid-cols-[1.1fr_0.9fr] gap-10 lg:gap-14 items-center">
           <div>
-            <p className="text-xs font-semibold tracking-[0.18em] text-brand-700 uppercase">LectureMap</p>
-            <h1 className="mt-4 max-w-3xl text-4xl sm:text-5xl font-semibold leading-tight">
+            <p className="eyebrow">LectureMap</p>
+            <h1 className="mt-4 max-w-3xl text-5xl sm:text-6xl font-semibold leading-[1.05]">
               Build a study system from the material you already have.
             </h1>
-            <p className="mt-5 max-w-2xl text-base sm:text-lg leading-relaxed text-slate-600">
+            <p className="mt-5 max-w-2xl text-base sm:text-lg leading-relaxed text-slate-700">
               LectureMap converts your recordings and PDFs into a connected knowledge map, focused review cards, and a clear plan for what to study next.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row gap-3">
@@ -70,32 +79,77 @@ export default function Landing() {
         </div>
       </section>
 
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-14 lg:py-20">
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-14 lg:py-20" aria-labelledby="how-it-works">
         <div className="max-w-2xl">
-          <p className="text-sm font-medium text-brand-700">A complete learning workspace</p>
-          <h2 className="mt-2 text-3xl font-semibold">Less note management. More durable understanding.</h2>
+          <p className="eyebrow">How it works</p>
+          <h2 id="how-it-works" className="mt-2 text-4xl font-semibold">From a recording to a map you can walk through.</h2>
+        </div>
+        <ol className="mt-10 grid md:grid-cols-3 gap-5">
+          {WORKFLOW.map(([title, detail], index) => (
+            <li key={title} className="card p-6">
+              <span className="font-display text-3xl font-semibold text-brand-600" aria-hidden="true">0{index + 1}</span>
+              <h3 className="mt-3 font-semibold text-slate-900">{title}</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{detail}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 pb-14 lg:pb-20 grid lg:grid-cols-2 gap-10 items-center">
+        <figure className="card p-6" aria-label="Illustration of a concept graph">
+          <svg viewBox="0 0 320 200" className="w-full" role="img" aria-label="Example: four concepts connected by prerequisite links, one marked as not yet studied">
+            <g stroke="var(--viz-edge)" strokeWidth="1.6" fill="none">
+              <path d="M50 150 120 90M120 90l80 20M200 110l70-60M200 110l40 70" />
+            </g>
+            <circle cx="50" cy="150" r="16" fill="var(--diff-beginner)" />
+            <circle cx="120" cy="90" r="20" fill="var(--diff-intermediate)" />
+            <circle cx="200" cy="110" r="18" fill="var(--diff-advanced)" />
+            <circle cx="270" cy="50" r="13" fill="none" stroke="var(--viz-main)" strokeWidth="2" strokeDasharray="4 3" />
+            <circle cx="240" cy="180" r="13" fill="var(--diff-intermediate)" />
+          </svg>
+          <figcaption className="mt-3 text-xs text-slate-600">Illustration only. Your graph is built from your own lecture.</figcaption>
+        </figure>
+        <div>
+          <p className="eyebrow">Aha Path</p>
+          <h2 className="mt-2 text-4xl font-semibold">Let the graph walk you through it.</h2>
+          <p className="mt-4 text-base leading-7 text-slate-700">
+            The Aha Path steps through your concept graph in prerequisite order, highlighting each concept in turn so you meet foundations before the ideas that depend on them.
+          </p>
+          <h3 className="mt-8 font-semibold text-slate-900">Then keep it with spaced repetition.</h3>
+          <p className="mt-2 text-sm leading-6 text-slate-600">
+            Flashcards generated from the lecture feed a daily review queue, so what you studied comes back when you are about to forget it.
+          </p>
+        </div>
+      </section>
+
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-14 lg:py-20 border-t surface-border">
+        <div className="max-w-2xl">
+          <p className="eyebrow">A complete learning workspace</p>
+          <h2 className="mt-2 text-4xl font-semibold">Less note management. More durable understanding.</h2>
         </div>
         <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-8">
           {FEATURES.map(([title, detail], index) => (
-            <article key={title} className="border-t border-slate-200 pt-4">
-              <p className="text-xs font-semibold text-brand-700">{String(index + 1).padStart(2, '0')}</p>
-              <h3 className="mt-2 font-semibold text-slate-900">{title}</h3>
+            <article key={title} className="card-interactive p-5">
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-100 text-brand-700">
+                <Icon name={ICONS[index % ICONS.length]} size={20} />
+              </span>
+              <h3 className="mt-4 font-semibold text-slate-900">{title}</h3>
               <p className="mt-2 text-sm leading-6 text-slate-600">{detail}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <section className="border-y border-slate-200 bg-slate-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-14 grid md:grid-cols-3 gap-8">
-          <div><p className="text-2xl font-semibold">Your source stays central.</p></div>
-          <p className="text-sm leading-6 text-slate-600">Every graph, card, and study path begins with material you upload. LectureMap does not fill your workspace with sample lectures or fabricated study content.</p>
-          <p className="text-sm leading-6 text-slate-600">Use guest mode for a private trial, then create an account when you are ready to keep building a long-term study library.</p>
+      <section className="px-4 sm:px-6 pb-14">
+        <div className="ink-panel max-w-6xl mx-auto rounded-3xl px-6 sm:px-10 py-12 grid md:grid-cols-3 gap-8 shadow-lift">
+          <div><p className="font-display text-3xl font-semibold text-sage-50">Your source stays central.</p></div>
+          <p className="text-sm leading-7 text-sage-100">Every graph, card, and study path begins with material you upload. LectureMap does not fill your workspace with sample lectures or fabricated study content.</p>
+          <p className="text-sm leading-7 text-sage-100">You can download your data or delete your account from Settings. <Link to="/privacy" className="underline">Read the privacy policy</Link>. Use guest mode for a private trial, then create an account when you are ready to keep building a long-term study library.</p>
         </div>
       </section>
 
-      <footer className="max-w-6xl mx-auto px-4 sm:px-6 py-7 flex flex-col sm:flex-row gap-3 justify-between text-sm text-slate-500">
-        <span>LectureMap</span>
+      <footer className="max-w-6xl mx-auto px-4 sm:px-6 py-7 flex flex-col sm:flex-row gap-3 justify-between text-sm text-slate-600">
+        <span className="font-display font-semibold text-slate-900">LectureMap</span>
         <Link to="/privacy" className="hover:text-slate-900">Privacy policy</Link>
       </footer>
       <AuthModal open={Boolean(authModal)} initialMode={authModal || 'login'} onClose={() => setAuthModal(null)} />

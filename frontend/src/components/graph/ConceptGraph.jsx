@@ -76,9 +76,16 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
   // the single most distinctive feature in the app: it turns a static
   // dependency diagram into a guided "here's the order you'd actually
   // learn this in" tour — something no flashcard app or note tool offers.
+  const ahaIdxRef = useRef(-1)
+  const ahaPausedRef = useRef(false)
+  const [ahaPaused, setAhaPaused] = useState(false)
+
   const stopAhaPath = useCallback(() => {
     setAhaPlaying(false)
+    setAhaPaused(false)
     setAhaIndex(-1)
+    ahaIdxRef.current = -1
+    ahaPausedRef.current = false
     if (ahaTimeoutRef.current) {
       clearTimeout(ahaTimeoutRef.current)
       ahaTimeoutRef.current = null
@@ -88,57 +95,80 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
     }
   }, [])
 
-  const playAhaPath = useCallback(() => {
-    if (!data || !svgRef.current || ahaOrder.length === 0) return
-    setAhaPlaying(true)
+  // Shows step i: pans to the node and rings it. Keeps advancing every 1.5s unless paused.
+  const showAhaStep = useCallback((i) => {
+    if (!svgRef.current) return
+    if (ahaTimeoutRef.current) {
+      clearTimeout(ahaTimeoutRef.current)
+      ahaTimeoutRef.current = null
+    }
+    if (i >= ahaOrder.length) return stopAhaPath()
+    const index = Math.max(0, i)
+    const target = ahaOrder[index]
+    ahaIdxRef.current = index
+    setAhaIndex(index)
 
     const svg = d3.select(svgRef.current)
     const zoom = d3.zoom().scaleExtent([0.3, 3]).on('zoom', (event) => {
       svg.select('.zoom-layer').attr('transform', event.transform)
     })
-
-    let i = 0
-    const step = () => {
-      if (i >= ahaOrder.length) {
-        stopAhaPath()
-        return
-      }
-      const target = ahaOrder[i]
-      setAhaIndex(i)
-
-      if (target.x != null && target.y != null) {
-        const scale = 1.4
-        const tx = dims.width / 2 - target.x * scale
-        const ty = dims.height / 2 - target.y * scale
-        svg.transition().duration(700).ease(d3.easeCubicInOut).call(
-          zoom.transform,
-          d3.zoomIdentity.translate(tx, ty).scale(scale)
-        )
-      }
-
-      // Pulse ring on the active node
-      if (nodeSelRef.current) {
-        nodeSelRef.current.select('.aha-ring').remove()
-        nodeSelRef.current
-          .filter((d) => d.concept_id === target.concept_id)
-          .append('circle')
-          .attr('class', 'aha-ring')
-          .attr('r', getNodeRadius(target.difficulty) + 6)
-          .attr('fill', 'none')
-          .attr('stroke', '#4f46e5')
-          .attr('stroke-width', 3)
-          .attr('opacity', 0)
-          .transition().duration(250)
-          .attr('opacity', 1)
-          .transition().delay(900).duration(400)
-          .attr('opacity', 0)
-      }
-
-      i += 1
-      ahaTimeoutRef.current = setTimeout(step, 1500)
+    if (target.x != null && target.y != null) {
+      const scale = 1.4
+      const tx = dims.width / 2 - target.x * scale
+      const ty = dims.height / 2 - target.y * scale
+      svg.transition().duration(700).ease(d3.easeCubicInOut).call(
+        zoom.transform,
+        d3.zoomIdentity.translate(tx, ty).scale(scale)
+      )
     }
-    step()
-  }, [data, ahaOrder, dims, stopAhaPath])
+
+    // Ring stays on the active node, so a paused tour still shows where it is.
+    if (nodeSelRef.current) {
+      nodeSelRef.current.select('.aha-ring').remove()
+      nodeSelRef.current
+        .filter((d) => d.concept_id === target.concept_id)
+        .append('circle')
+        .attr('class', 'aha-ring')
+        .attr('r', getNodeRadius(target.difficulty) + 6)
+        .attr('fill', 'none')
+        .attr('stroke', 'var(--viz-main)')
+        .attr('stroke-width', 3)
+        .attr('opacity', 0)
+        .transition().duration(250)
+        .attr('opacity', 1)
+    }
+
+    if (!ahaPausedRef.current) {
+      ahaTimeoutRef.current = setTimeout(() => showAhaStep(index + 1), 1500)
+    }
+  }, [ahaOrder, dims, stopAhaPath])
+
+  const playAhaPath = useCallback(() => {
+    if (!data || !svgRef.current || ahaOrder.length === 0) return
+    ahaPausedRef.current = false
+    setAhaPaused(false)
+    setAhaPlaying(true)
+    showAhaStep(0)
+  }, [data, ahaOrder, showAhaStep])
+
+  const pauseAhaPath = useCallback(() => {
+    ahaPausedRef.current = true
+    setAhaPaused(true)
+    if (ahaTimeoutRef.current) {
+      clearTimeout(ahaTimeoutRef.current)
+      ahaTimeoutRef.current = null
+    }
+  }, [])
+
+  const resumeAhaPath = useCallback(() => {
+    ahaPausedRef.current = false
+    setAhaPaused(false)
+    showAhaStep(ahaIdxRef.current + 1)
+  }, [showAhaStep])
+
+  const skipAhaPath = useCallback((delta) => {
+    showAhaStep(Math.max(0, ahaIdxRef.current + delta))
+  }, [showAhaStep])
 
   useEffect(() => () => { if (ahaTimeoutRef.current) clearTimeout(ahaTimeoutRef.current) }, [])
 
@@ -171,12 +201,12 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
     setAhaOrder(topologicalLearningOrder(nodes, rawEdges))
 
     // Theme-aware colors read once per (re)build
-    const labelColor = cssVar('--text-secondary', '#475569')
-    const tooltipBg = cssVar('--surface-card', '#ffffff')
-    const tooltipTitle = cssVar('--text-primary', '#0f172a')
-    const tooltipBody = cssVar('--text-tertiary', '#94a3b8')
-    const tooltipBorder = cssVar('--surface-border', '#e2e8f0')
-    const linkColor = '#94a3b8'
+    const labelColor = cssVar('--text-secondary', '#3f5046')
+    const tooltipBg = cssVar('--surface', '#ffffff')
+    const tooltipTitle = cssVar('--text-primary', '#17251d')
+    const tooltipBody = cssVar('--text-tertiary', '#5a6b60')
+    const tooltipBorder = cssVar('--border', '#d5e2d5')
+    const linkColor = 'var(--viz-edge)'
 
     // Clear previous
     const svg = d3.select(svgRef.current)
@@ -211,7 +241,7 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
       .selectAll('line')
       .data(links)
       .join('line')
-      .attr('stroke', (d) => d.isGap ? '#ef4444' : linkColor)
+      .attr('stroke', (d) => d.isGap ? 'var(--viz-gap)' : linkColor)
       .attr('stroke-width', (d) => linkStrokeWidth(d.strength))
       .attr('stroke-opacity', (d) => d.isGap ? 0.8 : 0.5)
       .attr('marker-end', (d) => d.isGap ? 'url(#arrowhead-gap)' : 'url(#arrowhead)')
@@ -260,7 +290,7 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
       .append('circle')
       .attr('r', (d) => getNodeRadius(d.difficulty) + 8)
       .attr('fill', 'none')
-      .attr('stroke', '#ef4444')
+      .attr('stroke', 'var(--viz-gap)')
       .attr('stroke-width', 2)
       .attr('stroke-opacity', 0.6)
       .attr('class', 'gap-ring')
@@ -271,7 +301,7 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
       .attr('r', (d) => getNodeRadius(d.difficulty))
       .attr('fill', (d) => getNodeColor(d.difficulty, gapNodes.has(d.concept_id), visitedNodes.has(d.concept_id)))
       .attr('fill-opacity', (d) => statusOf(d) === 'studied' || statusOf(d) === 'mastered' ? 1.0 : 0.75)
-      .attr('stroke', (d) => gapNodes.has(d.concept_id) ? '#dc2626' : '#fff')
+      .attr('stroke', (d) => gapNodes.has(d.concept_id) ? 'var(--viz-gap)' : 'var(--viz-node-ring)')
       .attr('stroke-width', (d) => gapNodes.has(d.concept_id) ? 2.5 : 1.5)
       .attr('stroke-dasharray', (d) => statusOf(d) === 'blocked' ? '3 2' : null)
       .attr('filter', (d) => gapNodes.has(d.concept_id) ? 'url(#glow)' : null)
@@ -283,7 +313,7 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
       .attr('text-anchor', 'middle')
       .attr('dy', '0.35em')
       .attr('font-size', '12px')
-      .attr('fill', '#fff')
+      .attr('fill', (d) => gapNodes.has(d.concept_id) ? 'var(--viz-node-label)' : `var(--diff-${d.difficulty || 'intermediate'}-ink)`)
       .attr('pointer-events', 'none')
       .text((d) => STATUS_GLYPHS[statusOf(d)])
 
@@ -354,9 +384,26 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
 
     return () => {
       simulation.stop()
-      stopAhaPath()
+      // A rebuild (resize, refreshed graph, a concept marked studied) must not end
+      // the learner's tour; only cancel the pending step. The effect below resumes it.
+      if (ahaTimeoutRef.current) {
+        clearTimeout(ahaTimeoutRef.current)
+        ahaTimeoutRef.current = null
+      }
     }
   }, [data, dims, filterDiff, visitedNodes, gapNodes])
+
+  // After a rebuild, re-show the current tour step on the new layout (respecting pause).
+  const ahaPlayingRef = useRef(false)
+  useEffect(() => { ahaPlayingRef.current = ahaPlaying }, [ahaPlaying])
+  useEffect(() => {
+    if (!ahaPlayingRef.current) return
+    if (ahaOrder.length < 2) return stopAhaPath()
+    const t = setTimeout(() => showAhaStep(Math.min(Math.max(ahaIdxRef.current, 0), ahaOrder.length - 1)), 50)
+    return () => clearTimeout(t)
+  }, [ahaOrder]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => () => stopAhaPath(), [stopAhaPath])
 
   const diffCounts = {
     all: data?.nodes?.length || 0,
@@ -380,17 +427,44 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
         {/* Aha Path flythrough */}
         {ahaOrder.length > 1 && (
           ahaPlaying ? (
-            <button
-              onClick={stopAhaPath}
-              className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium bg-brand-600 text-white transition-all"
-            >
-              <span className="w-1.5 h-1.5 bg-white rounded-sm" />
-              Stop tour ({ahaIndex + 1}/{ahaOrder.length})
-            </button>
+            <div role="group" aria-label="Aha Path controls" className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => skipAhaPath(-1)}
+                disabled={ahaIndex <= 0}
+                aria-label="Previous concept"
+                className="text-xs px-2 py-1 rounded-full border surface-border text-secondary hover:border-brand-400 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <span aria-hidden="true">⏮</span>
+              </button>
+              <button
+                type="button"
+                onClick={ahaPaused ? resumeAhaPath : pauseAhaPath}
+                className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-semibold bg-primary text-on-primary transition-all"
+              >
+                <span aria-hidden="true">{ahaPaused ? '▶' : '⏸'}</span>
+                {ahaPaused ? 'Resume' : 'Pause'} ({ahaIndex + 1}/{ahaOrder.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => skipAhaPath(1)}
+                aria-label="Next concept"
+                className="text-xs px-2 py-1 rounded-full border surface-border text-secondary hover:border-brand-400"
+              >
+                <span aria-hidden="true">⏭</span>
+              </button>
+              <button
+                type="button"
+                onClick={stopAhaPath}
+                className="text-xs px-2.5 py-1 rounded-full font-medium border surface-border text-secondary hover:border-brand-400"
+              >
+                Stop tour
+              </button>
+            </div>
           ) : (
             <button
               onClick={playAhaPath}
-              className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium border surface-border text-secondary hover:border-brand-300 transition-all"
+              className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium border surface-border text-secondary hover:border-brand-400 transition-all"
               title="Animated flythrough in prerequisite-first learning order"
             >
               ▶ Aha Path
@@ -406,8 +480,8 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
               onClick={() => setFilterDiff(d)}
               className={`text-xs px-2.5 py-1 rounded-full transition-all ${
                 filterDiff === d
-                  ? 'bg-brand-600 text-white'
-                  : 'surface-card border surface-border text-secondary hover:border-brand-300'
+                  ? 'bg-primary text-on-primary'
+                  : 'surface-card border surface-border text-secondary hover:border-brand-400'
               }`}
             >
               {d === 'all' ? `All (${diffCounts.all})` : `${d[0].toUpperCase() + d.slice(1)} (${diffCounts[d]})`}
@@ -442,7 +516,7 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
         {/* Fit to screen */}
         <button
           onClick={fitToScreen}
-          className="text-xs px-2.5 py-1 surface-card border surface-border rounded text-secondary hover:border-brand-300 transition-colors"
+          className="text-xs px-2.5 py-1 surface-card border surface-border rounded text-secondary hover:border-brand-400 transition-colors"
         >
           Fit ↗
         </button>
@@ -450,11 +524,11 @@ export default function ConceptGraph({ data, onNodeSelect, lectureId }) {
 
       {/* Active Aha Path node banner */}
       {ahaPlaying && ahaIndex >= 0 && ahaOrder[ahaIndex] && (
-        <div className="px-4 py-2 bg-brand-50 border-b border-brand-100 flex items-center gap-2 animate-fade-in">
+        <div role="status" className="px-4 py-2 bg-brand-50 border-b border-brand-100 flex items-center gap-2 animate-fade-in">
           <span className="text-xs font-semibold text-brand-700">
             {ahaIndex + 1}. {ahaOrder[ahaIndex].name}
           </span>
-          <span className="text-xs text-brand-500">
+          <span className="text-xs text-brand-700">
             {ahaOrder[ahaIndex].definition?.slice(0, 80)}
           </span>
         </div>

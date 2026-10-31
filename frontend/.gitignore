@@ -1,0 +1,4 @@
+
+# Local Playwright browser download
+.cache/
+test-results/
