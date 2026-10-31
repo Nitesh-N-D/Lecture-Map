@@ -7,6 +7,9 @@ class Settings(BaseSettings):
     # SQLite makes the app runnable on a fresh local checkout. Set this to a
     # Supabase/Postgres connection string for a deployed installation.
     DATABASE_URL: str = "sqlite+aiosqlite:///./lecturemap.db"
+    DB_CONNECT_TIMEOUT_SECONDS: float = 5.0
+    STARTUP_DEPENDENCY_RETRIES: int = 3
+    STARTUP_RETRY_DELAY_SECONDS: float = 1.0
     
     # Supabase
     SUPABASE_URL: str = ""

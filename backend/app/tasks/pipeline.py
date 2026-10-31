@@ -51,7 +51,13 @@ def _session_factory():
     from sqlalchemy.orm import sessionmaker
     from app.config import settings
 
-    engine = create_engine(_sync_database_url(settings.DATABASE_URL), pool_pre_ping=True)
+    connect_args = {}
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        connect_args["connect_timeout"] = max(1, int(settings.DB_CONNECT_TIMEOUT_SECONDS))
+    engine = create_engine(
+        _sync_database_url(settings.DATABASE_URL), pool_pre_ping=True,
+        connect_args=connect_args,
+    )
     return engine, sessionmaker(bind=engine)
 
 

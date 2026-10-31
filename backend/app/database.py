@@ -21,7 +21,12 @@ def _engine_kwargs(database_url: str) -> dict:
             "pool_recycle": 300,
             "pool_size": 1,
             "max_overflow": 0,
-            "connect_args": {"statement_cache_size": 0},
+            # asyncpg otherwise permits a long connection wait, which used to
+            # hold the ASGI lifespan open before Uvicorn could bind its port.
+            "connect_args": {
+                "statement_cache_size": 0,
+                "timeout": settings.DB_CONNECT_TIMEOUT_SECONDS,
+            },
         }
     )
     return kwargs

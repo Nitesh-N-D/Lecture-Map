@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 import uuid
 from datetime import datetime, timedelta
 
@@ -16,6 +17,12 @@ from app.routers import lectures as lectures_router
 @pytest.fixture(scope="module")
 def client():
     with TestClient(app) as c:
+        # The production lifespan binds HTTP before initializing integrations;
+        # wait for the local test database before DB-backed endpoint assertions.
+        deadline = time.monotonic() + 10
+        while app.state.dependencies.get("database") != "available" and time.monotonic() < deadline:
+            time.sleep(0.01)
+        assert app.state.dependencies.get("database") == "available"
         yield c
 
 

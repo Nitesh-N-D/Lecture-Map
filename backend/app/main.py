@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.concurrency import run_in_threadpool
@@ -20,43 +21,80 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
     logger.info("Starting LectureMap API...")
-
-    # PostgreSQL
-    await init_db()
-
-    # Lectures left PENDING/PROCESSING by a previous process would spin forever.
+    app.state.dependencies = {"database": "initializing", "neo4j": "initializing"}
+    # Defer all network/database initialization until after ASGI startup has
+    # yielded, so Render/Uvicorn can bind the HTTP port while services recover.
+    dependency_task = asyncio.create_task(_initialize_dependencies(app))
     try:
-        from app.tasks.pipeline import recover_interrupted_lectures
-
-        recovered = await run_in_threadpool(
-            recover_interrupted_lectures, all_in_flight=not settings.USE_CELERY
-        )
-        if recovered:
-            logger.warning("Marked %s interrupted lecture(s) as FAILED (retry available)", recovered)
-    except Exception as e:
-        logger.warning(f"Interrupted-lecture recovery skipped: {e}")
-
-    # Neo4j (don't crash if unavailable)
-    try:
-        await neo4j_client.connect()
-        if neo4j_client.driver:
-            logger.info("Neo4j connected")
-        else:
-            logger.info("Neo4j disabled")
-    except Exception as e:
-        logger.warning(f"Neo4j unavailable: {e}")
-
-    yield
-
-    # Shutdown
+        yield
+    finally:
+        dependency_task.cancel()
+        try:
+            await dependency_task
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("Dependency initialization task stopped unexpectedly")
     try:
         await neo4j_client.close()
-    except Exception:
-        pass
-
+    except Exception as exc:
+        logger.warning("Neo4j shutdown failed (%s)", type(exc).__name__)
     logger.info("LectureMap API shutdown")
+
+
+async def _initialize_dependencies(app: FastAPI):
+    """Initialize integrations in the background with bounded attempts."""
+    retries = max(1, settings.STARTUP_DEPENDENCY_RETRIES)
+    for attempt in range(1, retries + 1):
+        try:
+            await asyncio.wait_for(init_db(), timeout=settings.DB_CONNECT_TIMEOUT_SECONDS + 5)
+            app.state.dependencies["database"] = "available"
+            logger.info("Database initialized")
+            break
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            app.state.dependencies["database"] = "unavailable"
+            logger.warning("Database initialization attempt %s/%s failed (%s)", attempt, retries, type(exc).__name__)
+            if attempt < retries:
+                await asyncio.sleep(settings.STARTUP_RETRY_DELAY_SECONDS * attempt)
+    else:
+        logger.error("Database unavailable after %s bounded startup attempts", retries)
+
+    if app.state.dependencies["database"] == "available":
+        try:
+            from app.tasks.pipeline import recover_interrupted_lectures
+
+            recovered = await asyncio.wait_for(
+                run_in_threadpool(recover_interrupted_lectures, all_in_flight=not settings.USE_CELERY),
+                timeout=settings.DB_CONNECT_TIMEOUT_SECONDS + 5,
+            )
+            if recovered:
+                logger.warning("Marked %s interrupted lecture(s) as FAILED (retry available)", recovered)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.warning("Interrupted-lecture recovery skipped (%s)", type(exc).__name__)
+
+    for attempt in range(1, retries + 1):
+        try:
+            await asyncio.wait_for(
+                neo4j_client.connect(), timeout=max(1.0, settings.NEO4J_CONNECTION_TIMEOUT + 2)
+            )
+            if neo4j_client.driver:
+                app.state.dependencies["neo4j"] = "available"
+                break
+            app.state.dependencies["neo4j"] = "unavailable"
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            app.state.dependencies["neo4j"] = "unavailable"
+            logger.warning("Neo4j initialization attempt %s/%s failed (%s)", attempt, retries, type(exc).__name__)
+        if attempt < retries and settings.NEO4J_URI:
+            await asyncio.sleep(settings.STARTUP_RETRY_DELAY_SECONDS * attempt)
+    if app.state.dependencies["neo4j"] != "available":
+        logger.warning("Neo4j unavailable after bounded startup attempts; graph integration is degraded")
 
 
 app = FastAPI(
@@ -121,4 +159,13 @@ async def health():
         "storage": storage["backend"],
         "storage_ok": storage["ok"],
         "queue": "celery" if settings.USE_CELERY else "in-process",
+    }
+
+
+@app.get("/health/dependencies")
+async def dependency_health():
+    """Report integration state separately from the lightweight liveness probe."""
+    return {
+        "status": "ok" if all(v == "available" for v in app.state.dependencies.values()) else "degraded",
+        "dependencies": dict(app.state.dependencies),
     }
