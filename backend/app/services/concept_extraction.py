@@ -2,7 +2,9 @@ import asyncio
 import json
 import logging
 import re
+import threading
 from collections import Counter
+from contextvars import ContextVar
 
 import google.generativeai as genai
 from app.config import settings
@@ -76,7 +78,9 @@ Rules:
 VALID_DIFFICULTIES = {"beginner", "intermediate", "advanced"}
 CHUNK_CHARS = 30_000
 MAX_CHUNKS = 6
-GEMINI_ATTEMPTS = 3
+GEMINI_ATTEMPTS = 4
+# Per-minute quota errors need a longer pause than a transient 5xx to clear.
+GEMINI_RATE_LIMIT_DELAYS = (6, 15, 30)
 
 
 def _slugify(value: str) -> str:
@@ -84,11 +88,46 @@ def _slugify(value: str) -> str:
     return slug[:64]
 
 
+# A user's own key, set by the pipeline for the duration of one lecture. It takes
+# precedence over the shared server key.
+user_gemini_key: ContextVar[str | None] = ContextVar("user_gemini_key", default=None)
+# genai.configure() is process-global, so configure + call is serialised.
+_gemini_lock = threading.Lock()
+
+
+def active_gemini_key() -> str:
+    return user_gemini_key.get() or settings.GEMINI_API_KEY
+
+
+def _using_user_key() -> bool:
+    return bool(user_gemini_key.get())
+
+
 def _configure_gemini():
-    if not settings.GEMINI_API_KEY:
+    if not active_gemini_key():
         raise RuntimeError("GEMINI_API_KEY is not configured")
-    genai.configure(api_key=settings.GEMINI_API_KEY)
     return genai.GenerativeModel(settings.GEMINI_MODEL)
+
+
+def _call_model(model, prompt: str, config, key: str):
+    with _gemini_lock:
+        genai.configure(api_key=key)
+        return model.generate_content(prompt, generation_config=config)
+
+
+def validate_gemini_key(key: str) -> None:
+    """Raise RuntimeError with a safe message unless ``key`` can list models (uses no generation quota)."""
+    try:
+        with _gemini_lock:
+            genai.configure(api_key=key)
+            next(iter(genai.list_models()), None)
+    except Exception as error:  # noqa: BLE001 - SDK raises many types
+        name = type(error).__name__
+        if name in {"ResourceExhausted", "TooManyRequests"}:
+            return  # the key is valid, just rate-limited right now
+        if name in {"PermissionDenied", "Unauthenticated", "InvalidArgument"} or "api key" in str(error).lower():
+            raise RuntimeError("Google rejected this key. Check that you copied the whole key.") from error
+        raise RuntimeError("Could not reach Google to check the key. Try again in a moment.") from error
 
 
 def _local_concept_fallback(transcript: str) -> dict:
@@ -243,6 +282,13 @@ def _is_retryable(error: Exception) -> bool:
 def _gemini_failure_message(error: Exception | None) -> str:
     """Turn an SDK error into a safe, actionable message (never includes the key)."""
     name = type(error).__name__
+    own = _using_user_key()
+    if name in {"PermissionDenied", "Unauthenticated", "InvalidArgument"} and own:
+        return "Your Gemini key was rejected. Update it in Settings."
+    if name in {"ResourceExhausted", "TooManyRequests"}:
+        if own:
+            return "Your Gemini key has reached its quota. Wait a minute, or use a different key in Settings."
+        return "The shared Gemini quota is used up. Add your own free Gemini key in Settings, then retry."
     if name == "NotFound":
         return "Gemini model is unavailable. Set GEMINI_MODEL to a model your API key can use."
     if name in {"PermissionDenied", "Unauthenticated"}:
@@ -260,16 +306,19 @@ async def _generate_text(model, prompt: str, *, temperature: float, max_tokens: 
     for attempt in range(GEMINI_ATTEMPTS):
         try:
             response = await asyncio.to_thread(
-                model.generate_content,
+                _call_model,
+                model,
                 prompt,
-                generation_config=genai.GenerationConfig(temperature=temperature, max_output_tokens=max_tokens),
+                genai.GenerationConfig(temperature=temperature, max_output_tokens=max_tokens),
+                active_gemini_key(),
             )
             return response.text
         except Exception as error:  # noqa: BLE001 - SDK raises many types
             last_error = error
             if not _is_retryable(error) or attempt == GEMINI_ATTEMPTS - 1:
                 break
-            delay = 2 ** attempt
+            rate_limited = type(error).__name__ in {"ResourceExhausted", "TooManyRequests"} or "429" in str(error)
+            delay = GEMINI_RATE_LIMIT_DELAYS[min(attempt, len(GEMINI_RATE_LIMIT_DELAYS) - 1)] if rate_limited else 2 ** attempt
             logger.warning("Gemini call failed (%s); retrying in %ss", type(error).__name__, delay)
             await asyncio.sleep(delay)
     raise RuntimeError(_gemini_failure_message(last_error)) from last_error
@@ -298,7 +347,7 @@ async def extract_concepts_and_edges(transcript: str, lecture_id: str) -> dict:
     if not transcript.strip():
         raise RuntimeError("Transcript is empty")
 
-    if not settings.GEMINI_API_KEY:
+    if not active_gemini_key():
         logger.info("Gemini is not configured; using local extractive concept fallback")
         return _local_concept_fallback(transcript)
 
@@ -361,7 +410,7 @@ async def generate_flashcards_for_concept(
     definition: str,
     context: str = "",
 ) -> list:
-    if not settings.GEMINI_API_KEY:
+    if not active_gemini_key():
         return _fallback_cards(concept_name, definition)
     model = _configure_gemini()
     prompt = FLASHCARD_PROMPT.format(

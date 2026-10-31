@@ -5,7 +5,10 @@ import uuid
 from collections import defaultdict, deque
 
 from fastapi import Request
+from fastapi.exception_handlers import http_exception_handler, request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import settings
@@ -116,3 +119,24 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
         status_code=500,
         headers={"X-Request-ID": request_id},
     )
+
+
+def _with_request_id(request: Request, response):
+    """Add request_id to a JSON error body without changing its `detail`."""
+    import json
+    request_id = getattr(request.state, "request_id", None)
+    try:
+        body = json.loads(response.body)
+        body["request_id"] = request_id
+        headers = {k: v for k, v in response.headers.items() if k.lower() not in ("content-length", "content-type")}
+        return JSONResponse(body, status_code=response.status_code, headers=headers)
+    except (ValueError, TypeError, AttributeError):
+        return response
+
+
+async def http_error_handler(request: Request, exc: StarletteHTTPException):
+    return _with_request_id(request, await http_exception_handler(request, exc))
+
+
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    return _with_request_id(request, await request_validation_exception_handler(request, exc))

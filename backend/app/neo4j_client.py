@@ -18,14 +18,41 @@ class Neo4jClient:
             self._driver = AsyncGraphDatabase.driver(
                 settings.NEO4J_URI,
                 auth=(settings.NEO4J_USERNAME, settings.NEO4J_PASSWORD),
+                max_connection_pool_size=settings.NEO4J_MAX_POOL_SIZE,
+                connection_timeout=settings.NEO4J_CONNECTION_TIMEOUT,
+                connection_acquisition_timeout=settings.NEO4J_CONNECTION_TIMEOUT * 2,
+                max_connection_lifetime=1800,  # Aura drops idle connections; recycle first
             )
             await self._driver.verify_connectivity()
+            await self._ensure_schema()
             logger.info("Neo4j connected")
         except Exception as e:
-            logger.warning("Neo4j unavailable; graph features disabled: %s", e)
+            # Log the error class only: driver messages can echo the URI.
+            logger.warning("Neo4j unavailable; graph features disabled: %s", type(e).__name__)
             if self._driver:
-                await self._driver.close()
+                try:
+                    await self._driver.close()
+                except Exception:
+                    pass
             self._driver = None
+
+    def _session(self):
+        return self._driver.session(database=settings.NEO4J_DATABASE or None)
+
+    async def _ensure_schema(self):
+        """Uniqueness prevents duplicate concept/user nodes even under concurrent MERGEs."""
+        async with self._session() as session:
+            await session.run(
+                "CREATE CONSTRAINT concept_id_unique IF NOT EXISTS "
+                "FOR (c:Concept) REQUIRE c.concept_id IS UNIQUE"
+            )
+            await session.run(
+                "CREATE CONSTRAINT user_id_unique IF NOT EXISTS "
+                "FOR (u:User) REQUIRE u.user_id IS UNIQUE"
+            )
+            await session.run(
+                "CREATE INDEX concept_lecture_idx IF NOT EXISTS FOR (c:Concept) ON (c.lecture_id)"
+            )
 
     async def close(self):
         if self._driver:
@@ -49,7 +76,7 @@ class Neo4jClient:
     ) -> dict:
         if not self._driver:
             return {}
-        async with self._driver.session() as session:
+        async with self._session() as session:
             result = await session.run(
                 """
                 MERGE (c:Concept {concept_id: $concept_id})
@@ -82,7 +109,7 @@ class Neo4jClient:
     ) -> bool:
         if not self._driver:
             return False
-        async with self._driver.session() as session:
+        async with self._session() as session:
             await session.run(
                 """
                 MATCH (a:Concept {concept_id: $from_id})
@@ -100,7 +127,7 @@ class Neo4jClient:
     async def get_graph(self, lecture_id: str) -> dict:
         if not self._driver:
             return {"nodes": [], "edges": []}
-        async with self._driver.session() as session:
+        async with self._session() as session:
             nodes_result = await session.run(
                 """
                 MATCH (c:Concept {lecture_id: $lecture_id})
@@ -132,7 +159,7 @@ class Neo4jClient:
     async def get_prerequisites(self, concept_id: str) -> list:
         if not self._driver:
             return []
-        async with self._driver.session() as session:
+        async with self._session() as session:
             result = await session.run(
                 """
                 MATCH (pre:Concept)-[:PREREQUISITE_OF]->(c:Concept {concept_id: $concept_id})
@@ -148,7 +175,7 @@ class Neo4jClient:
     async def get_concept_lecture_id(self, concept_id: str) -> Optional[str]:
         if not self._driver:
             return None
-        async with self._driver.session() as session:
+        async with self._session() as session:
             result = await session.run(
                 """
                 MATCH (c:Concept {concept_id: $concept_id})
@@ -163,7 +190,7 @@ class Neo4jClient:
     async def get_dependents(self, concept_id: str) -> list:
         if not self._driver:
             return []
-        async with self._driver.session() as session:
+        async with self._session() as session:
             result = await session.run(
                 """
                 MATCH (c:Concept {concept_id: $concept_id})-[:PREREQUISITE_OF]->(dep:Concept)
@@ -179,7 +206,7 @@ class Neo4jClient:
     async def mark_visited(self, concept_id: str, user_id: str) -> bool:
         if not self._driver:
             return False
-        async with self._driver.session() as session:
+        async with self._session() as session:
             await session.run(
                 """
                 MATCH (c:Concept {concept_id: $concept_id})
@@ -196,7 +223,7 @@ class Neo4jClient:
     async def get_visited_concepts(self, lecture_id: str, user_id: str) -> list:
         if not self._driver:
             return []
-        async with self._driver.session() as session:
+        async with self._session() as session:
             result = await session.run(
                 """
                 MATCH (u:User {user_id: $user_id})-[:VISITED]->(c:Concept {lecture_id: $lecture_id})
@@ -218,7 +245,7 @@ class Neo4jClient:
         """
         if not self._driver:
             return False
-        async with self._driver.session() as session:
+        async with self._session() as session:
             result = await session.run(
                 """
                 MATCH (u:User {user_id: $user_id})-[:VISITED]->(c:Concept {concept_id: $concept_id})
@@ -234,7 +261,7 @@ class Neo4jClient:
         """Return prerequisite nodes that are unvisited but whose dependents are visited."""
         if not self._driver:
             return []
-        async with self._driver.session() as session:
+        async with self._session() as session:
             result = await session.run(
                 """
                 MATCH (u:User {user_id: $user_id})-[:VISITED]->(visited:Concept {lecture_id: $lecture_id})
@@ -254,7 +281,7 @@ class Neo4jClient:
         """Find ordered study path from unvisited prerequisites to target concept."""
         if not self._driver:
             return []
-        async with self._driver.session() as session:
+        async with self._session() as session:
             result = await session.run(
                 """
                 MATCH path = (pre:Concept)-[:PREREQUISITE_OF*]->(target:Concept {concept_id: $target_concept_id})
@@ -276,7 +303,7 @@ class Neo4jClient:
         if not self._driver or len(lecture_ids) < 2:
             return 0
         merged = 0
-        async with self._driver.session() as session:
+        async with self._session() as session:
             result = await session.run(
                 """
                 MATCH (a:Concept)
@@ -307,7 +334,7 @@ class Neo4jClient:
 
         lecture_titles = lecture_titles or {}
 
-        async with self._driver.session() as session:
+        async with self._session() as session:
             nodes_result = await session.run(
                 """
                 MATCH (c:Concept)
@@ -355,7 +382,7 @@ class Neo4jClient:
     async def delete_lecture_graph(self, lecture_id: str):
         if not self._driver:
             return
-        async with self._driver.session() as session:
+        async with self._session() as session:
             await session.run(
                 """
                 MATCH (c:Concept {lecture_id: $lecture_id})
@@ -363,6 +390,56 @@ class Neo4jClient:
                 """,
                 lecture_id=lecture_id,
             )
+
+    async def replace_lecture_graph(self, lecture_id: str, concepts: list, edges: list) -> tuple[int, int]:
+        """Atomically replace a lecture's mirror: one write transaction, so a failure
+        mid-way never leaves a half-written graph, and re-runs never duplicate."""
+        if not self._driver:
+            return 0, 0
+        nodes = [
+            {
+                "concept_id": c["id"], "name": c["name"], "definition": c.get("definition", ""),
+                "timestamp_seconds": int(c.get("timestamp_seconds") or 0),
+                "difficulty": c.get("difficulty", "intermediate"),
+            }
+            for c in concepts
+        ]
+        rels = [{"from": e["from"], "to": e["to"], "strength": float(e.get("strength", 0.5))} for e in edges]
+
+        async def work(tx):
+            await tx.run("MATCH (c:Concept {lecture_id: $lid}) DETACH DELETE c", lid=lecture_id)
+            await tx.run(
+                """
+                UNWIND $nodes AS n
+                MERGE (c:Concept {concept_id: n.concept_id})
+                SET c.lecture_id = $lid, c.name = n.name, c.definition = n.definition,
+                    c.timestamp_seconds = n.timestamp_seconds, c.difficulty = n.difficulty,
+                    c.visit_count = 0, c.updated_at = datetime()
+                """,
+                nodes=nodes, lid=lecture_id,
+            )
+            result = await tx.run(
+                """
+                UNWIND $rels AS r
+                MATCH (a:Concept {concept_id: r.from, lecture_id: $lid})
+                MATCH (b:Concept {concept_id: r.to, lecture_id: $lid})
+                MERGE (a)-[p:PREREQUISITE_OF {lecture_id: $lid}]->(b)
+                SET p.strength = r.strength
+                RETURN count(p) AS edges
+                """,
+                rels=rels, lid=lecture_id,
+            )
+            record = await result.single()
+            return len(nodes), (record["edges"] if record else 0)
+
+        async with self._session() as session:
+            return await session.execute_write(work)
+
+    async def delete_user_node(self, user_id: str):
+        if not self._driver:
+            return
+        async with self._session() as session:
+            await session.run("MATCH (u:User {user_id: $user_id}) DETACH DELETE u", user_id=user_id)
 
 
 neo4j_client = Neo4jClient()

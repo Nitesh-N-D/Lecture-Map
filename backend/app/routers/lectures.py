@@ -40,7 +40,7 @@ def _queue_processing(lecture_id: str, background_tasks: BackgroundTasks) -> str
         return task.id
     except Exception as e:
         task_id = f"local-{uuid.uuid4()}"
-        logger.warning("Celery unavailable; using FastAPI background task %s: %s", task_id, e)
+        logger.warning("Celery unavailable; using FastAPI background task %s: %s", task_id, type(e).__name__)
         background_tasks.add_task(process_lecture_direct, lecture_id)
         return task_id
 
@@ -130,7 +130,13 @@ async def upload_lecture(
         status=LectureStatus.PENDING,
     )
     db.add(lecture)
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception:
+        # Never leave an unreferenced object behind in storage.
+        await db.rollback()
+        await run_in_threadpool(delete_file, storage_path)
+        raise
 
     task_id = _queue_processing(lecture_id, background_tasks)
     lecture.celery_task_id = task_id

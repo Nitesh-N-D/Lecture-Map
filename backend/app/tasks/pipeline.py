@@ -184,15 +184,16 @@ async def _generate_all_cards(concepts: list, transcript: str) -> dict:
 async def _store_graph_async(lecture_id: str, graph_data: dict):
     """Write to Neo4j with a private client (the API's singleton belongs to its own loop)."""
     from app.neo4j_client import Neo4jClient
-    from app.services.graph_service import store_graph
 
     client = Neo4jClient()
     await client.connect()
     if not client.driver:
         return None
     try:
-        await client.delete_lecture_graph(lecture_id)  # idempotent re-runs
-        return await store_graph(lecture_id, graph_data, client=client)
+        # One transaction: idempotent on re-runs, never half-written.
+        return await client.replace_lecture_graph(
+            lecture_id, graph_data.get("concepts", []), graph_data.get("edges", [])
+        )
     finally:
         await client.close()
 
@@ -207,7 +208,7 @@ def _process_lecture_impl(lecture_id: str):
     from app.config import settings
     from app.models.flashcard import Flashcard
     from app.models.lecture import Lecture, LectureStatus
-    from app.services.concept_extraction import extract_concepts_and_edges
+    from app.services.concept_extraction import extract_concepts_and_edges, user_gemini_key
     from app.services.documents import extract_pdf_text, is_pdf_file
     from app.services.graph_service import scope_graph_data
     from app.services.storage import fetch_file
@@ -247,6 +248,11 @@ def _process_lecture_impl(lecture_id: str):
 
             # ── 3. Concepts ─────────────────────────────────────────
             update_step(STEP_EXTRACT)
+            from app.models.user import User
+            from app.services.secret_box import decrypt_secret
+
+            owner = db.query(User).filter(User.id == lecture.user_id).first()
+            user_gemini_key.set(decrypt_secret(owner.gemini_api_key_enc) if owner else None)
             graph_data = _run_async(extract_concepts_and_edges(transcript, lecture_id))
             graph_data = {**scope_graph_data(lecture_id, graph_data), "source": graph_data.get("source", "gemini")}
             concepts, edges = graph_data["concepts"], graph_data["edges"]
@@ -291,5 +297,6 @@ def _process_lecture_impl(lecture_id: str):
         db.rollback()
         raise
     finally:
+        user_gemini_key.set(None)
         db.close()
         engine.dispose()

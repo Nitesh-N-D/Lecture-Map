@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Boolean, Enum as SAEnum, Integer
+from sqlalchemy import Column, String, DateTime, Boolean, Enum as SAEnum, Integer, Text
 from sqlalchemy.orm import relationship
 from app.database import Base
 import enum
@@ -33,11 +33,14 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     # Bumped on logout / security events; tokens carrying an older value are rejected.
     token_version = Column(Integer, default=0, nullable=False, server_default="0")
+    # Fernet-encrypted bring-your-own Gemini key; never returned by any endpoint.
+    gemini_api_key_enc = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     lectures = relationship("Lecture", back_populates="user", cascade="all, delete-orphan")
     study_sessions = relationship("StudySession", back_populates="user", cascade="all, delete-orphan")
+    review_logs = relationship("ReviewLog", back_populates="user", cascade="all, delete-orphan")
 
     @property
     def has_password(self) -> bool:

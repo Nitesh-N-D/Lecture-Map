@@ -19,7 +19,7 @@ from app.models.user import User, UserRole
 from app.models.lecture import Lecture
 from app.models.flashcard import Flashcard
 from app.neo4j_client import neo4j_client
-from app.services.storage import delete_file
+from app.services.storage import delete_file, remove_orphans
 from app.auth import create_access_token, get_current_user, hash_password, verify_password
 from app.schemas.user import TokenResponse, UserResponse, SignupRequest, LoginRequest
 from app.config import deployment_urls, settings
@@ -277,10 +277,17 @@ async def _erase_user(db: AsyncSession, user: User) -> None:
             await neo4j_client.delete_lecture_graph(lec.id)
         except Exception as error:  # optional mirror; never blocks erasure
             logger.warning("Neo4j cleanup failed during account deletion: %s", type(error).__name__)
-    await db.delete(user)  # ORM cascade removes lectures, flashcards, study sessions
+    try:
+        await neo4j_client.delete_user_node(user.id)
+    except Exception as error:
+        logger.warning("Neo4j user cleanup failed during account deletion: %s", type(error).__name__)
+    user_id = user.id
+    await db.delete(user)  # ORM cascade removes lectures, flashcards, study sessions, review logs
     await db.commit()
     for ref in refs:
         await run_in_threadpool(delete_file, ref)
+    # Sweep anything left under the user's prefix (e.g. an upload whose DB write failed).
+    await run_in_threadpool(remove_orphans, user_id, set())
 
 
 # ── Current User ──────────────────────────────────────────────────────────────

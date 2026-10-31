@@ -79,3 +79,10 @@ def test_unhandled_error_is_generic_and_carries_request_id(client):
     r = client.get("/__boom")
     assert r.status_code == 500
     assert "secret" not in r.text and r.json()["request_id"] == r.headers["x-request-id"]
+
+
+def test_http_and_validation_errors_carry_request_id(client):
+    r = client.get("/auth/me")  # no token -> 401
+    assert r.status_code == 401 and r.json()["detail"] and r.json()["request_id"] == r.headers["x-request-id"]
+    r = client.post("/auth/login", json={})  # invalid body -> 422
+    assert r.status_code == 422 and isinstance(r.json()["detail"], list) and r.json()["request_id"]

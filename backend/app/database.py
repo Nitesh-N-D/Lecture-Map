@@ -53,7 +53,7 @@ async def get_db():
 
 async def init_db():
     """Create all tables on startup."""
-    from app.models import user, lecture, flashcard, study_session  # noqa: F401
+    from app.models import user, lecture, flashcard, study_session, review_log  # noqa: F401
 
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -68,4 +68,6 @@ async def init_db():
         user_columns = await conn.run_sync(lambda sync_conn: {c["name"] for c in inspect(sync_conn).get_columns("users")})
         if "token_version" not in user_columns:
             await conn.execute(text("ALTER TABLE users ADD COLUMN token_version INTEGER NOT NULL DEFAULT 0"))
+        if "gemini_api_key_enc" not in user_columns:
+            await conn.execute(text("ALTER TABLE users ADD COLUMN gemini_api_key_enc TEXT"))
     logger.info("Database tables created/verified")

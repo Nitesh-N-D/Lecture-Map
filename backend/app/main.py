@@ -7,9 +7,12 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import frontend_urls, settings
 from app.database import init_db
-from app.middleware import RequestGuardMiddleware, unhandled_exception_handler
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+from app.middleware import RequestGuardMiddleware, http_error_handler, unhandled_exception_handler, validation_error_handler
 from app.neo4j_client import neo4j_client
-from app.routers import auth, lectures, graph, flashcards, export
+from app.routers import auth, lectures, graph, flashcards, export, user_settings
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -85,6 +88,8 @@ app.add_middleware(
 
 app.add_middleware(RequestGuardMiddleware)
 app.add_exception_handler(Exception, unhandled_exception_handler)
+app.add_exception_handler(StarletteHTTPException, http_error_handler)
+app.add_exception_handler(RequestValidationError, validation_error_handler)
 
 # Session Middleware (IMPORTANT for Google OAuth)
 app.add_middleware(
@@ -101,12 +106,19 @@ app.include_router(lectures.router)
 app.include_router(graph.router)
 app.include_router(flashcards.router)
 app.include_router(export.router)
+app.include_router(user_settings.router)
 
 
 @app.get("/health")
 async def health():
+    from app.services.storage import storage_status
+
+    storage = storage_status()
     return {
         "status": "ok",
         "version": "1.0.0",
         "neo4j": neo4j_client.driver is not None,
+        "storage": storage["backend"],
+        "storage_ok": storage["ok"],
+        "queue": "celery" if settings.USE_CELERY else "in-process",
     }

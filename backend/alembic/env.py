@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.database import Base
-from app.models import user, lecture, flashcard, study_session  # noqa: F401
+from app.models import user, lecture, flashcard, study_session, review_log  # noqa: F401
 
 config = context.config
 

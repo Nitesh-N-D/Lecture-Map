@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     NEO4J_URI: str = ""
     NEO4J_USERNAME: str = "neo4j"
     NEO4J_PASSWORD: str = ""
+    # Optional; Aura credential files include it. Empty uses the server default database.
+    NEO4J_DATABASE: str = ""
+    NEO4J_MAX_POOL_SIZE: int = 20
+    NEO4J_CONNECTION_TIMEOUT: float = 15.0
     
     # Redis (Upstash)
     REDIS_URL: str = "redis://localhost:6379"
@@ -46,6 +50,8 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = ""
     # Signs the OAuth session cookie; falls back to JWT_SECRET when unset.
     SESSION_SECRET: str = ""
+    # Encrypts users' own Gemini keys at rest; falls back to JWT_SECRET when unset.
+    KEY_ENCRYPTION_SECRET: str = ""
     # The public API origin. This is used for OAuth callback URLs, which must
     # exactly match the URL registered with Google. Set it to the Render API
     # URL in production (for example https://lecturemap-api.onrender.com).
@@ -141,4 +147,19 @@ if settings.ENVIRONMENT == "production":
     if not frontend_urls() or not backend_urls():
         raise RuntimeError(
             "FRONTEND_URL and BACKEND_URL must include a public https:// URL when ENVIRONMENT=production"
+        )
+    if settings.ALLOW_LOCAL_STORAGE_FALLBACK:
+        raise RuntimeError(
+            "ALLOW_LOCAL_STORAGE_FALLBACK must be false when ENVIRONMENT=production: "
+            "uploads on a server's local disk are lost on redeploy and would hide a Supabase outage"
+        )
+    import logging as _logging
+
+    if not (settings.SUPABASE_URL and settings.SUPABASE_KEY):
+        _logging.getLogger(__name__).error(
+            "SUPABASE_URL/SUPABASE_KEY are not set: uploads will be refused until storage is configured"
+        )
+    elif settings.SUPABASE_KEY.startswith("sb_publishable_"):
+        _logging.getLogger(__name__).error(
+            "SUPABASE_KEY is a publishable key; the API needs the project's secret key (sb_secret_...)"
         )

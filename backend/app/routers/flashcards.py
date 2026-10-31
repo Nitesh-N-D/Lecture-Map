@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models.user import User
 from app.models.flashcard import Flashcard
 from app.models.lecture import Lecture
+from app.models.review_log import ReviewLog
 from app.auth import get_current_user
 from app.schemas.flashcard import FlashcardResponse, ReviewRequest, ReviewResponse, ReviewStats
 from app.services.srs_service import sm2_update
@@ -105,6 +106,11 @@ async def review_card(
     if rows.rowcount != 1:
         await db.rollback()
         raise HTTPException(409, "This card was just reviewed")
+    db.add(ReviewLog(
+        user_id=current_user.id, lecture_id=card.lecture_id, card_id=card.id,
+        concept_id=card.concept_id, quality=body.quality,
+        interval_days=updates.get("interval_days", card.interval_days), reviewed_at=now,
+    ))
     await db.commit()
     await db.refresh(card)
 
@@ -135,13 +141,10 @@ async def get_review_stats(
             upcoming_due={}, total_cards=0
         )
 
-    # Cards reviewed today
+    # Reviews submitted today (every review counts, including repeats of a card)
     reviewed_today = await db.execute(
-        select(func.count(Flashcard.id)).where(
-            and_(
-                Flashcard.lecture_id.in_(lecture_ids),
-                Flashcard.last_reviewed_at >= today_start,
-            )
+        select(func.count(ReviewLog.id)).where(
+            ReviewLog.user_id == current_user.id, ReviewLog.reviewed_at >= today_start
         )
     )
     reviewed_count = reviewed_today.scalar() or 0
@@ -182,7 +185,7 @@ async def get_review_stats(
 
     # Streak: count consecutive calendar days (ending today or yesterday)
     # that had at least one card reviewed.
-    streak_days = await _compute_streak(db, lecture_ids)
+    streak_days = await _compute_streak(db, current_user.id)
 
     return ReviewStats(
         cards_reviewed_today=reviewed_count,
@@ -193,38 +196,29 @@ async def get_review_stats(
     )
 
 
-async def _compute_streak(db: AsyncSession, lecture_ids: list) -> int:
-    """
-    Count consecutive days (walking backward from today) where at least
-    one flashcard was reviewed. Streak breaks the first day with zero
-    reviews, unless that day is today (still in progress).
-    """
-    if not lecture_ids:
-        return 0
-
-    # Pull distinct review dates in descending order, capped at a
-    # reasonable lookback window to keep the query cheap.
-    lookback_start = datetime.combine(_utc_today() - timedelta(days=365), datetime.min.time())
+async def _review_days(db: AsyncSession, user_id: str, days: int) -> dict[date, int]:
+    """Review counts per UTC day for the last ``days`` days, from the review log."""
+    since = datetime.combine(_utc_today() - timedelta(days=days - 1), datetime.min.time())
+    day = func.date(ReviewLog.reviewed_at)
     result = await db.execute(
-        select(func.date(Flashcard.last_reviewed_at).label("review_date"))
-        .where(
-            and_(
-                Flashcard.lecture_id.in_(lecture_ids),
-                Flashcard.last_reviewed_at.isnot(None),
-                Flashcard.last_reviewed_at >= lookback_start,
-            )
-        )
-        .distinct()
-        .order_by(func.date(Flashcard.last_reviewed_at).desc())
+        select(day, func.count(ReviewLog.id))
+        .where(ReviewLog.user_id == user_id, ReviewLog.reviewed_at >= since)
+        .group_by(day)
     )
-    review_dates = set()
-    for row in result.all():
-        d = row[0]
-        # SQLite/Postgres may return str or date depending on driver
-        if isinstance(d, str):
-            d = datetime.strptime(d, "%Y-%m-%d").date()
-        review_dates.add(d)
+    out: dict[date, int] = {}
+    for raw, count in result.all():
+        # SQLite returns str, Postgres returns date
+        d = datetime.strptime(raw, "%Y-%m-%d").date() if isinstance(raw, str) else raw
+        out[d] = count
+    return out
 
+
+async def _compute_streak(db: AsyncSession, user_id: str) -> int:
+    """
+    Count consecutive days (walking backward from today) with at least one
+    review. A day with no reviews breaks the streak, unless it is today.
+    """
+    review_dates = set(await _review_days(db, user_id, 366))
     if not review_dates:
         return 0
 
@@ -242,3 +236,33 @@ async def _compute_streak(db: AsyncSession, lecture_ids: list) -> int:
         cursor -= timedelta(days=1)
 
     return streak
+
+
+@router.get("/review/history")
+async def get_review_history(
+    days: int = 91,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Daily review counts plus the most recent reviews, for the activity heatmap."""
+    days = max(1, min(days, 366))
+    counts = await _review_days(db, current_user.id, days)
+    recent = await db.execute(
+        select(ReviewLog, Flashcard.question, Flashcard.concept_name)
+        .outerjoin(Flashcard, Flashcard.id == ReviewLog.card_id)
+        .where(ReviewLog.user_id == current_user.id)
+        .order_by(ReviewLog.reviewed_at.desc())
+        .limit(20)
+    )
+    return {
+        "days": {d.isoformat(): c for d, c in sorted(counts.items())},
+        "total_reviews": sum(counts.values()),
+        "recent": [
+            {
+                "card_id": log.card_id, "lecture_id": log.lecture_id, "concept_name": concept_name,
+                "question": question, "quality": log.quality, "interval_days": log.interval_days,
+                "reviewed_at": log.reviewed_at.isoformat(),
+            }
+            for log, question, concept_name in recent.all()
+        ],
+    }

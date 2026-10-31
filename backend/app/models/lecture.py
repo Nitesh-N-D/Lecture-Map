@@ -40,3 +40,4 @@ class Lecture(Base):
     user = relationship("User", back_populates="lectures")
     flashcards = relationship("Flashcard", back_populates="lecture", cascade="all, delete-orphan")
     study_sessions = relationship("StudySession", back_populates="lecture", cascade="all, delete-orphan")
+    review_logs = relationship("ReviewLog", back_populates="lecture", cascade="all, delete-orphan")

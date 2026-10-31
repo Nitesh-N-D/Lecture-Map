@@ -262,3 +262,50 @@ async def get_knowledge_map(
         "lecture_count": len(lectures),
         "lectures": [{"id": l.id, "title": l.title or "Untitled lecture"} for l in lectures],
     }
+
+
+@router.get("/progress/summary")
+async def get_progress_summary(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Learning progress across the user's processed lectures, from persisted data only."""
+    rows = (await db.execute(
+        select(Lecture)
+        .where(Lecture.user_id == current_user.id, Lecture.status == LectureStatus.COMPLETED)
+        .order_by(Lecture.updated_at.desc())
+    )).scalars().all()
+    mastered_by = await _mastered(db, [lec.id for lec in rows])
+    totals = {k: 0 for k in ("concepts", "unexplored", "studied", "mastered", "blocked")}
+    lectures = []
+    for lec in rows:
+        graph = graph_from_lecture(lec) if lec.graph_data else {"nodes": [], "edges": []}
+        ids, edges = _ids_edges(graph)
+        statuses = algo.concept_statuses(ids, edges, _visited(lec), mastered_by[lec.id])
+        counts = {k: 0 for k in ("unexplored", "studied", "mastered", "blocked")}
+        for status in statuses.values():
+            counts[status] += 1
+        total = len(ids)
+        done = counts["studied"] + counts["mastered"]
+        lectures.append({
+            "lecture_id": lec.id, "title": lec.title, "concepts": total, **counts,
+            "completed": done, "percent": round(100 * done / total) if total else 0,
+            "updated_at": lec.updated_at.isoformat() if lec.updated_at else None,
+        })
+        totals["concepts"] += total
+        for k, v in counts.items():
+            totals[k] += v
+    completed = totals["studied"] + totals["mastered"]
+    # The lecture with the most recent activity that still has unfinished concepts.
+    current = next((l for l in lectures if 0 < l["completed"] < l["concepts"]), None) or \
+        next((l for l in lectures if l["completed"] < l["concepts"]), None)
+    return {
+        "total_concepts": totals["concepts"],
+        "completed_concepts": completed,
+        "mastered_concepts": totals["mastered"],
+        "pending_concepts": totals["concepts"] - completed,
+        "blocked_concepts": totals["blocked"],
+        "percent": round(100 * completed / totals["concepts"]) if totals["concepts"] else 0,
+        "lectures": lectures,
+        "current_lecture_id": current["lecture_id"] if current else None,
+    }
